@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5efe5;
+  --foreground: #16202a;
+  --panel: rgba(255, 250, 243, 0.82);
+  --panel-border: rgba(22, 32, 42, 0.1);
+  --accent: #bb5a2a;
+  --accent-strong: #8f3d1d;
+  --muted: #62707c;
+  --grid: rgba(22, 32, 42, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(187, 90, 42, 0.18), transparent 24rem),
+    radial-gradient(circle at bottom right, rgba(22, 32, 42, 0.14), transparent 30rem),
+    linear-gradient(135deg, #f7f1e8, #ece4d7);
+}
+
+body {
+  min-height: 100svh;
+  margin: 0;
+  color: var(--foreground);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 2rem 2rem;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.glass-panel {
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 18px 60px rgba(22, 32, 42, 0.12);
+}
