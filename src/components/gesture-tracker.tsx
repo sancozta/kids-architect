@@ -1,6 +1,4 @@
 "use client";
-
-import { Hand, LoaderCircle, Webcam } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { GestureFrame } from "@/lib/types";
@@ -83,8 +81,6 @@ export function GestureTracker({ onGesture }: GestureTrackerProps) {
     palmSize: number;
     roll: number;
   } | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("Solicitando acesso a camera...");
   const [gestureState, setGestureState] = useState<"no-hand" | "tracking" | "pinch">("no-hand");
   const [handSummary, setHandSummary] = useState("Nenhuma mao detectada");
 
@@ -120,9 +116,6 @@ export function GestureTracker({ onGesture }: GestureTrackerProps) {
         hands.onResults((results) => {
           latestResults = results;
         });
-
-        setStatus("ready");
-        setMessage("Camera ativa. Use pinch com mais folga, gire a palma para rotacao completa e aproxime ou afaste a mao para zoom.");
 
         const loop = async () => {
           const video = videoRef.current;
@@ -229,10 +222,7 @@ export function GestureTracker({ onGesture }: GestureTrackerProps) {
         };
 
         loop();
-      } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Nao foi possivel acessar a camera ou inicializar o tracker.");
-      }
+      } catch {}
     }
 
     boot();
@@ -247,29 +237,16 @@ export function GestureTracker({ onGesture }: GestureTrackerProps) {
   }, [onGesture]);
 
   return (
-    <div className="glass-panel rounded-[2rem] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Hand Tracking</p>
-          <h2 className="text-xl">Controle por movimentos dos dedos</h2>
-        </div>
-        {status === "loading" ? <LoaderCircle className="size-5 animate-spin text-[var(--accent)]" /> : <Webcam className="size-5 text-[var(--accent)]" />}
-      </div>
-
-      <div className="relative overflow-hidden rounded-[1.25rem] bg-[#1e2a33]">
-        <video ref={videoRef} className="aspect-video w-full -scale-x-100 object-cover opacity-90" playsInline muted />
+    <div className="relative h-full min-h-0 overflow-hidden rounded-[5px] bg-[#1e2a33]">
+      <div className="relative h-full min-h-0 overflow-hidden rounded-[5px] bg-[#1e2a33]">
+        <video ref={videoRef} className="h-full w-full -scale-x-100 object-cover opacity-90" playsInline muted />
         <canvas ref={canvasRef} width={960} height={540} className="absolute inset-0 h-full w-full" />
-        <div className="absolute left-3 top-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white">
+        <div className="absolute left-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white">
           {gestureState === "pinch" ? "Pinch ativo" : gestureState === "tracking" ? "Mao detectada" : "Aguardando mao"}
         </div>
-        <div className="absolute right-3 top-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white">
+        <div className="absolute right-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white">
           {handSummary}
         </div>
-      </div>
-
-      <div className="mt-3 flex items-start gap-3 rounded-[1rem] bg-white/55 p-3 text-sm text-[var(--muted)]">
-        <Hand className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" />
-        <p>{message}</p>
       </div>
     </div>
   );

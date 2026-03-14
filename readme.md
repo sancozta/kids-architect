@@ -23,3 +23,9 @@ Abra [http://localhost:3000](http://localhost:3000).
 - A conversao 2D para 3D ainda e heuristica, nao semantica
 - O modelo resultante e uma massa arquitetonica, nao uma casa completa com portas, telhado e mobiliario
 - O tracking usa um gesto simples de pinca para priorizar estabilidade na validacao inicial
+
+## Diretrizes de interface
+
+- Novos botoes, acoes rapidas, toggles e itens de controle da interface devem ser adicionados prioritariamente no header superior do editor.
+- O header superior e a area oficial para concentrar controles operacionais como status, gestos, modos do editor, importacao e futuras acoes globais.
+- Evitar espalhar novos controles em cards secundarios quando a acao puder viver no topo da tela.

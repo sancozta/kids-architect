@@ -9,9 +9,11 @@ import type { GestureFrame, PlanModel } from "@/lib/types";
 type ViewerProps = {
   planModel: PlanModel;
   gestureRef: React.MutableRefObject<GestureFrame>;
+  gesturesLocked?: boolean;
+  onExpand?: () => void;
 };
 
-export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
+export function ThreeHouseViewer({ planModel, gestureRef, gesturesLocked = false, onExpand }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -20,34 +22,42 @@ export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
       return;
     }
 
+    const getViewportSize = () => ({
+      width: Math.max(mount.clientWidth, 640),
+      height: Math.max(mount.clientHeight, 360),
+    });
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#f7f2ea");
     scene.fog = new THREE.Fog("#f7f2ea", 16, 42);
 
-    const camera = new THREE.PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.1, 100);
-    camera.position.set(8, 8, 8);
+    const initialSize = getViewportSize();
+    const camera = new THREE.PerspectiveCamera(45, initialSize.width / initialSize.height, 0.1, 100);
+    const sceneRadius = Math.max(planModel.floorWidth, planModel.floorDepth) * 0.65;
+    const cameraDistance = Math.max(sceneRadius * 1.35, 18);
+    camera.position.set(cameraDistance, cameraDistance * 0.82, cameraDistance);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
-    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    renderer.setSize(initialSize.width, initialSize.height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mount.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
-    controls.minDistance = 5;
-    controls.maxDistance = 26;
+    controls.minDistance = Math.max(sceneRadius * 0.45, 8);
+    controls.maxDistance = Math.max(sceneRadius * 2.8, 34);
     controls.minPolarAngle = 0.45;
     controls.maxPolarAngle = Math.PI / 2.08;
-    controls.target.set(0, 1.2, 0);
+    controls.target.set(0, Math.max(planModel.wallHeight * 0.35, 1.2), 0);
     controls.update();
 
     const ambientLight = new THREE.AmbientLight("#fff6e8", 1.1);
     scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight("#ffffff", 2.2);
-    directionalLight.position.set(10, 14, 8);
+    directionalLight.position.set(sceneRadius * 0.8, sceneRadius, sceneRadius * 0.65);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
@@ -64,7 +74,7 @@ export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
     const animate = () => {
       const gesture = gestureRef.current;
 
-      if (gesture.gestureActive) {
+      if (!gesturesLocked && gesture.gestureActive) {
         const offset = camera.position.clone().sub(controls.target);
         spherical.setFromVector3(offset);
         spherical.theta += gesture.rotationDeltaX * 0.11;
@@ -74,14 +84,14 @@ export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
         camera.position.copy(controls.target.clone().add(offset));
       }
 
-      if (Math.abs(gesture.rotationDeltaZ) > 0.001) {
+      if (!gesturesLocked && Math.abs(gesture.rotationDeltaZ) > 0.001) {
         world.rotation.y += gesture.rotationDeltaZ * 0.8;
       }
 
-      if (gesture.zoomDelta > 0.002) {
+      if (!gesturesLocked && gesture.zoomDelta > 0.002) {
         const offset = camera.position.clone().sub(controls.target).multiplyScalar(Math.max(0.97, 1 - gesture.zoomDelta * 0.22));
         camera.position.copy(controls.target.clone().add(offset));
-      } else if (gesture.zoomDelta < -0.002) {
+      } else if (!gesturesLocked && gesture.zoomDelta < -0.002) {
         const offset = camera.position.clone().sub(controls.target).multiplyScalar(Math.min(1.03, 1 + Math.abs(gesture.zoomDelta) * 0.22));
         camera.position.copy(controls.target.clone().add(offset));
       }
@@ -96,16 +106,21 @@ export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
         return;
       }
 
-      camera.aspect = mount.clientWidth / mount.clientHeight;
+      const nextSize = getViewportSize();
+      camera.aspect = nextSize.width / nextSize.height;
       camera.updateProjectionMatrix();
-      renderer.setSize(mount.clientWidth, mount.clientHeight);
+      renderer.setSize(nextSize.width, nextSize.height);
     };
 
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(mount);
     window.addEventListener("resize", handleResize);
+    handleResize();
     animate();
 
     return () => {
       cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", handleResize);
       controls.dispose();
       world.traverse((object) => {
@@ -125,9 +140,51 @@ export function ThreeHouseViewer({ planModel, gestureRef }: ViewerProps) {
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [planModel, gestureRef]);
+  }, [gesturesLocked, planModel, gestureRef]);
 
-  return <div ref={mountRef} className="glass-panel h-[520px] overflow-hidden rounded-[2rem]" />;
+  return (
+    <div className="relative h-full min-h-[360px] overflow-hidden rounded-[5px]">
+      <div ref={mountRef} className="glass-panel h-full overflow-hidden rounded-[5px]" />
+      <div className="pointer-events-none absolute bottom-3 right-3 flex items-end gap-2">
+        <div className="rounded-[5px] border border-white/10 bg-[rgba(11,16,22,0.76)] px-3 py-2 text-white backdrop-blur-sm">
+          <div className="grid gap-1 text-[10px] uppercase tracking-[0.16em] text-white/72">
+            <div className="flex items-center justify-between gap-3">
+              <span>Orbita</span>
+              <span className="text-xs text-white">↔</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>Giro</span>
+              <span className="text-xs text-white">↻</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>Zoom</span>
+              <span className="text-xs text-white">+ -</span>
+            </div>
+          </div>
+        </div>
+        {onExpand ? (
+          <button
+            type="button"
+            onClick={onExpand}
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center self-end rounded-[5px] border border-white/10 bg-[rgba(11,16,22,0.82)] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+            aria-label="Expandir maquete 3D"
+            title="Expandir maquete 3D"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
+              <path d="M9 4H4v5" />
+              <path d="M4 4l6 6" />
+              <path d="M15 4h5v5" />
+              <path d="M20 4l-6 6" />
+              <path d="M4 15v5h5" />
+              <path d="M4 20l6-6" />
+              <path d="M20 15v5h-5" />
+              <path d="M20 20l-6-6" />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function buildWorld(planModel: PlanModel) {
