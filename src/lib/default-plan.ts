@@ -2,6 +2,7 @@ import type { PlanModel } from "@/lib/types";
 
 export const DEFAULT_PLAN_MODEL: PlanModel = {
   imageUrl: null,
+  sourceLabel: "Casa base do editor",
   floorWidth: 36,
   floorDepth: 25,
   wallHeight: 2.8,

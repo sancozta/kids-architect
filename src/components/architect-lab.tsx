@@ -1,14 +1,23 @@
 "use client";
 
-import { Activity, CircleHelp, DraftingCompass, ExternalLink, FileImage, Lock, LockOpen, Minimize2, Plus, Upload } from "lucide-react";
+import { Activity, CircleHelp, Copy, DraftingCompass, ExternalLink, FileImage, Lock, LockOpen, MessageSquareText, Minimize2, Plus, Trash2, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import { ASSET_LIBRARY } from "@/lib/asset-library";
+import { buildAssistantReply } from "@/lib/editor-assistant";
 import { DEFAULT_PLAN_MODEL } from "@/lib/default-plan";
 import { createPlanModelFromFile } from "@/lib/plan-to-model";
-import type { GestureFrame, PlanModel } from "@/lib/types";
+import { clampSceneObjectPosition, createSceneObjectFromAsset, duplicateSceneObject, findAssetById, summarizeProject } from "@/lib/scene-assets";
+import type {
+  ArchitecturalFeatures,
+  ChatMessage,
+  ConsoleLogEntry,
+  GestureFrame,
+  PlanModel,
+  SceneObject,
+} from "@/lib/types";
 
 const GestureTracker = dynamic(
   () => import("@/components/gesture-tracker").then((module) => module.GestureTracker),
@@ -39,51 +48,98 @@ const EMPTY_GESTURE: GestureFrame = {
   zoomDelta: 0,
 };
 
+const INITIAL_FEATURES: ArchitecturalFeatures = {
+  roofEnabled: false,
+  windowsEnabled: false,
+  doorsEnabled: false,
+  gardenEnabled: false,
+};
+
+const INITIAL_CHAT: ChatMessage[] = [
+  {
+    id: "assistant-init",
+    role: "assistant",
+    content:
+      "Posso te orientar na criacao da maquete. Tente pedir algo como: adicionar sofa, ativar telhado, ligar janelas ou explicar o proximo passo do projeto.",
+  },
+];
+
+type SidePanelMode = "default" | "library" | "chat";
+
 export function ArchitectLab() {
   const gestureRef = useRef<GestureFrame>(EMPTY_GESTURE);
   const lastHudRef = useRef(0);
   const [planModel, setPlanModel] = useState<PlanModel>(DEFAULT_PLAN_MODEL);
-  const [consoleLogs, setConsoleLogs] = useState<string[]>(["Usando planta de exemplo para validar a experiencia inicial."]);
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([
+    { id: "boot-log", message: "Workspace inicializado com a maquete base do editor." },
+  ]);
   const [isConverting, setIsConverting] = useState(false);
   const [isGestureMovementLocked, setIsGestureMovementLocked] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isViewerExpanded, setIsViewerExpanded] = useState(false);
   const [gestureHud, setGestureHud] = useState(EMPTY_GESTURE);
-  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
-  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
+  const [sceneObjects, setSceneObjects] = useState<SceneObject[]>([]);
+  const [selectedSceneObjectId, setSelectedSceneObjectId] = useState<string | null>(null);
+  const [architecturalFeatures, setArchitecturalFeatures] = useState<ArchitecturalFeatures>(INITIAL_FEATURES);
+  const [sidePanelMode, setSidePanelMode] = useState<SidePanelMode>("default");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
+  const [chatDraft, setChatDraft] = useState("");
+  const selectedObject = sceneObjects.find((item) => item.id === selectedSceneObjectId) ?? null;
+  const summary = summarizeProject(planModel, sceneObjects, architecturalFeatures);
+  const activeFeatureCount =
+    Number(architecturalFeatures.roofEnabled) +
+    Number(architecturalFeatures.windowsEnabled) +
+    Number(architecturalFeatures.doorsEnabled) +
+    Number(architecturalFeatures.gardenEnabled);
 
   const appendConsoleLog = useCallback((message: string) => {
-    setConsoleLogs((current) => [message, ...current].slice(0, 12));
+    setConsoleLogs((current) => [{ id: `${Date.now()}-${current.length}`, message }, ...current].slice(0, 24));
   }, []);
 
-  const handleUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+  const toggleSidePanel = useCallback((mode: SidePanelMode) => {
+    setSidePanelMode((current) => (current === mode ? "default" : mode));
+  }, []);
 
-    setIsConverting(true);
-    appendConsoleLog(`Importacao iniciada para ${file.name}.`);
+  const applyArchitecturalFeature = useCallback(
+    (feature: keyof ArchitecturalFeatures, label: string, enabled: boolean) => {
+      setArchitecturalFeatures((current) => ({ ...current, [feature]: enabled }));
+      appendConsoleLog(`${label} ${enabled ? "ativado" : "desativado"} na maquete.`);
+    },
+    [appendConsoleLog],
+  );
 
-    try {
-      setPlanModel((current) => {
-        if (current.imageUrl?.startsWith("blob:")) {
-          URL.revokeObjectURL(current.imageUrl);
-        }
-        return current;
-      });
+  const handleUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
 
-      const nextModel = await createPlanModelFromFile(file);
-      setPlanModel(nextModel);
-      appendConsoleLog(`Planta ${file.name} convertida com sucesso.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao converter a planta.";
-      appendConsoleLog(message);
-    } finally {
-      setIsConverting(false);
-      event.target.value = "";
-    }
-  }, [appendConsoleLog]);
+      setIsConverting(true);
+      appendConsoleLog(`Importacao iniciada para ${file.name}.`);
+
+      try {
+        setPlanModel((current) => {
+          if (current.imageUrl?.startsWith("blob:")) {
+            URL.revokeObjectURL(current.imageUrl);
+          }
+
+          return current;
+        });
+
+        const nextModel = await createPlanModelFromFile(file);
+        setPlanModel(nextModel);
+        appendConsoleLog(`Planta ${file.name} convertida com sucesso em maquete 3D base.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha ao converter a planta.";
+        appendConsoleLog(message);
+      } finally {
+        setIsConverting(false);
+        event.target.value = "";
+      }
+    },
+    [appendConsoleLog],
+  );
 
   const handleGesture = useCallback((frame: GestureFrame) => {
     gestureRef.current = frame;
@@ -95,10 +151,189 @@ export function ArchitectLab() {
     }
   }, []);
 
-  const handleAssetSelect = useCallback((assetId: string, assetLabel: string) => {
-    setSelectedAssetIds((current) => (current.includes(assetId) ? current : [...current, assetId]));
-    appendConsoleLog(`Objeto ${assetLabel} adicionado a fila da biblioteca 3D.`);
-  }, [appendConsoleLog]);
+  const handleAssetSelect = useCallback(
+    (assetId: string) => {
+      const asset = findAssetById(assetId);
+      if (!asset) {
+        return;
+      }
+
+      if (asset.prototype.kind === "roof") {
+        applyArchitecturalFeature("roofEnabled", "Telhado", true);
+        return;
+      }
+
+      if (asset.prototype.kind === "door") {
+        applyArchitecturalFeature("doorsEnabled", "Portas", true);
+        return;
+      }
+
+      if (asset.prototype.kind === "window") {
+        applyArchitecturalFeature("windowsEnabled", "Janelas", true);
+        return;
+      }
+
+      const nextObject = createSceneObjectFromAsset(asset, sceneObjects.length, planModel);
+      setSceneObjects((current) => [...current, nextObject]);
+      setSelectedSceneObjectId(nextObject.id);
+      appendConsoleLog(`Objeto ${asset.label} inserido na maquete.`);
+    },
+    [appendConsoleLog, applyArchitecturalFeature, planModel, sceneObjects.length],
+  );
+
+  const handleSceneObjectUpdate = useCallback(
+    (id: string, patch: Partial<SceneObject>) => {
+      setSceneObjects((current) =>
+        current.map((item) => {
+          if (item.id !== id) {
+            return item;
+          }
+
+          const nextPosition = patch.position
+            ? clampSceneObjectPosition(
+                {
+                  x: patch.position.x,
+                  y: 0,
+                  z: patch.position.z,
+                },
+                planModel,
+                item.placement,
+              )
+            : item.position;
+
+          return {
+            ...item,
+            ...patch,
+            position: nextPosition,
+          };
+        }),
+      );
+    },
+    [planModel],
+  );
+
+  const moveSelectedObject = useCallback(
+    (dx: number, dz: number) => {
+      if (!selectedObject) {
+        return;
+      }
+
+      handleSceneObjectUpdate(selectedObject.id, {
+        position: {
+          x: selectedObject.position.x + dx,
+          y: 0,
+          z: selectedObject.position.z + dz,
+        },
+      });
+    },
+    [handleSceneObjectUpdate, selectedObject],
+  );
+
+  const rotateSelectedObject = useCallback(
+    (delta: number) => {
+      if (!selectedObject) {
+        return;
+      }
+
+      handleSceneObjectUpdate(selectedObject.id, {
+        rotationY: selectedObject.rotationY + delta,
+      });
+    },
+    [handleSceneObjectUpdate, selectedObject],
+  );
+
+  const scaleSelectedObject = useCallback(
+    (delta: number) => {
+      if (!selectedObject) {
+        return;
+      }
+
+      handleSceneObjectUpdate(selectedObject.id, {
+        scale: Math.min(Math.max(selectedObject.scale + delta, 0.55), 1.9),
+      });
+    },
+    [handleSceneObjectUpdate, selectedObject],
+  );
+
+  const duplicateSelectedObject = useCallback(() => {
+    if (!selectedObject) {
+      return;
+    }
+
+    const nextObject = duplicateSceneObject(selectedObject, planModel);
+    setSceneObjects((current) => [...current, nextObject]);
+    setSelectedSceneObjectId(nextObject.id);
+    appendConsoleLog(`Objeto ${selectedObject.label} duplicado.`);
+  }, [appendConsoleLog, planModel, selectedObject]);
+
+  const removeSelectedObject = useCallback(() => {
+    if (!selectedObject) {
+      return;
+    }
+
+    setSceneObjects((current) => current.filter((item) => item.id !== selectedObject.id));
+    setSelectedSceneObjectId(null);
+    appendConsoleLog(`Objeto ${selectedObject.label} removido da maquete.`);
+  }, [appendConsoleLog, selectedObject]);
+
+  const handleChatSubmit = useCallback(
+    (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+
+      const message = chatDraft.trim();
+      if (!message) {
+        return;
+      }
+
+      const userMessage: ChatMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: message,
+      };
+
+      setChatMessages((current) => [...current, userMessage]);
+      appendConsoleLog(`Chat: ${message}`);
+
+      const reply = buildAssistantReply({
+        message,
+        planModel,
+        sceneObjects,
+        features: architecturalFeatures,
+      });
+
+      for (const intent of reply.intents) {
+        if (intent.type === "open-library") {
+          setSidePanelMode("library");
+        }
+
+        if (intent.type === "toggle-feature") {
+          const labels: Record<keyof ArchitecturalFeatures, string> = {
+            roofEnabled: "Telhado",
+            windowsEnabled: "Janelas",
+            doorsEnabled: "Portas",
+            gardenEnabled: "Jardim",
+          };
+          applyArchitecturalFeature(intent.feature, labels[intent.feature], intent.enabled);
+        }
+
+        if (intent.type === "add-asset") {
+          handleAssetSelect(intent.assetId);
+        }
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now() + 1}`,
+        role: "assistant",
+        content: reply.reply,
+      };
+
+      setChatMessages((current) => [...current, assistantMessage]);
+      setChatDraft("");
+    },
+    [appendConsoleLog, architecturalFeatures, applyArchitecturalFeature, chatDraft, handleAssetSelect, planModel, sceneObjects],
+  );
+
+  const isBusy = isConverting;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[2400px] flex-col gap-3 overflow-auto bg-[var(--shell)] px-3 py-3 text-[var(--foreground)] xl:h-[100svh] xl:overflow-hidden 2xl:px-4 min-[2200px]:max-w-none min-[2200px]:px-6 min-[2600px]:px-8">
@@ -114,44 +349,40 @@ export function ArchitectLab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAssetLibraryOpen((current) => !current)}
-            className={`inline-flex h-9 min-w-[132px] items-center justify-center gap-2 rounded-[5px] border px-3 py-2 text-xs transition ${
-              assetLibraryOpen
-                ? "border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--foreground)]"
-                : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
-            }`}
-          >
-            <Plus className="size-3.5 text-[var(--accent)]" />
-            <span>Biblioteca 3D</span>
-            <span className="rounded-[4px] bg-white/6 px-1.5 py-0.5 text-[10px] text-[var(--foreground)]">{selectedAssetIds.length}</span>
-          </button>
-          <button
-            type="button"
+          <HeaderButton
+            active={sidePanelMode === "library"}
+            icon={<Plus className="size-3.5 text-[var(--accent)]" />}
+            label="Biblioteca 3D"
+            badge={sceneObjects.length}
+            onClick={() => toggleSidePanel("library")}
+          />
+          <HeaderButton
+            active={sidePanelMode === "chat"}
+            icon={<MessageSquareText className="size-3.5 text-[var(--accent)]" />}
+            label="Chat"
+            onClick={() => toggleSidePanel("chat")}
+          />
+          <HeaderButton
+            active={isGestureMovementLocked}
+            icon={
+              isGestureMovementLocked ? (
+                <Lock className="size-3.5 text-[var(--accent)]" />
+              ) : (
+                <LockOpen className="size-3.5 text-[var(--accent)]" />
+              )
+            }
+            label={isGestureMovementLocked ? "Gestos bloqueados" : "Gestos liberados"}
             onClick={() => setIsGestureMovementLocked((current) => !current)}
-            className={`inline-flex h-9 min-w-[148px] items-center justify-center gap-2 rounded-[5px] border px-3 py-2 text-xs transition ${
-              isGestureMovementLocked
-                ? "border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--foreground)]"
-                : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
-            }`}
-          >
-            {isGestureMovementLocked ? <Lock className="size-3.5 text-[var(--accent)]" /> : <LockOpen className="size-3.5 text-[var(--accent)]" />}
-            <span>{isGestureMovementLocked ? "Gestos bloqueados" : "Gestos liberados"}</span>
-          </button>
-          <button
-            type="button"
+            minWidthClass="min-w-[148px]"
+          />
+          <HeaderButton
+            active={isHelpOpen}
+            icon={<CircleHelp className="size-3.5 text-[var(--accent)]" />}
+            label="Help"
             onClick={() => setIsHelpOpen((current) => !current)}
-            className={`inline-flex h-9 min-w-[108px] items-center justify-center gap-2 rounded-[5px] border px-3 py-2 text-xs transition ${
-              isHelpOpen
-                ? "border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--foreground)]"
-                : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
-            }`}
-          >
-            <CircleHelp className="size-3.5 text-[var(--accent)]" />
-            <span>Help</span>
-          </button>
-          <ToolbarChip icon={<Activity className="size-3.5" />} label={isConverting ? "Pipeline ativo" : "Pronto"} tone={isConverting ? "accent" : "neutral"} />
+            minWidthClass="min-w-[108px]"
+          />
+          <ToolbarChip icon={<Activity className="size-3.5" />} label={isConverting ? "Convertendo planta" : "Editor pronto"} tone={isBusy ? "accent" : "neutral"} />
           <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[5px] bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]">
             <Upload className="size-3.5" />
             <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
@@ -160,10 +391,16 @@ export function ArchitectLab() {
         </div>
       </header>
 
-      <section className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[240px_minmax(0,1fr)_300px] 2xl:grid-cols-[260px_minmax(0,1.2fr)_340px] min-[2200px]:grid-cols-[280px_minmax(0,1.45fr)_380px] min-[2600px]:grid-cols-[320px_minmax(0,1.7fr)_420px]">
+      <section className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[210px_minmax(0,1fr)_286px] 2xl:grid-cols-[228px_minmax(0,1.24fr)_310px] min-[2200px]:grid-cols-[248px_minmax(0,1.5fr)_340px] min-[2600px]:grid-cols-[272px_minmax(0,1.78fr)_372px]">
         <aside className={`grid gap-3 xl:min-h-0 ${isHelpOpen ? "xl:grid-rows-[auto_auto]" : "xl:grid-rows-[auto]"}`}>
-          <StandardCard eyebrow="Ferramentas" title="" description="Acesso rapido ao fluxo operacional." compact>
-            <div className="min-h-6" />
+          <StandardCard eyebrow="Ferramentas" title="" description="Fluxo principal de construcao da maquete." compact>
+            <div className="grid gap-2">
+              <FlowPill label="1. Importar planta" active />
+              <FlowPill label="2. Converter para 3D" active={Boolean(planModel.sourceLabel)} />
+              <FlowPill label="3. Inserir objetos" active={sceneObjects.length > 0} />
+              <FlowPill label="4. Ajustar arquitetura" active={activeFeatureCount > 0} />
+              <FlowPill label="5. Refinar maquete" active={sceneObjects.length > 0 || activeFeatureCount > 0} />
+            </div>
           </StandardCard>
 
           {isHelpOpen ? (
@@ -179,13 +416,18 @@ export function ArchitectLab() {
         </aside>
 
         <section className="order-first grid gap-3 xl:order-none xl:min-h-0">
-          <div className="grid gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px] min-[2200px]:xl:grid-cols-[minmax(0,1fr)_380px] min-[2600px]:xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="glass-panel relative min-h-[420px] overflow-hidden rounded-[5px] p-2 xl:min-h-0">
+          <div className="grid gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_300px] min-[2200px]:xl:grid-cols-[minmax(0,1fr)_328px] min-[2600px]:xl:grid-cols-[minmax(0,1fr)_356px]">
+            <div className="glass-panel relative min-h-[460px] overflow-hidden rounded-[5px] p-2 xl:min-h-0">
               <ThreeHouseViewer
                 planModel={planModel}
                 gestureRef={gestureRef}
                 gesturesLocked={isGestureMovementLocked}
                 onExpand={() => setIsViewerExpanded(true)}
+                sceneObjects={sceneObjects}
+                selectedSceneObjectId={selectedSceneObjectId}
+                architecturalFeatures={architecturalFeatures}
+                onSelectSceneObject={setSelectedSceneObjectId}
+                onUpdateSceneObject={handleSceneObjectUpdate}
               />
             </div>
 
@@ -210,12 +452,12 @@ export function ArchitectLab() {
                 </div>
               </StandardCard>
 
-              <StandardCard eyebrow="Console" title="" description="Feedback operacional do ultimo processamento." compact>
+              <StandardCard eyebrow="Console" title="" description="Historico operacional do editor." compact>
                 <div className="grid h-full min-h-0 gap-2 overflow-hidden">
                   <div className="stealth-scroll grid max-h-full gap-1.5 overflow-y-auto pr-1">
                     {consoleLogs.map((log) => (
-                      <div key={log} className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-3 py-2.5">
-                        <p className="text-xs leading-5 text-[var(--foreground)]">{log}</p>
+                      <div key={log.id} className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-3 py-2.5">
+                        <p className="text-xs leading-5 text-[var(--foreground)]">{log.message}</p>
                       </div>
                     ))}
                   </div>
@@ -225,9 +467,9 @@ export function ArchitectLab() {
           </div>
         </section>
 
-        <aside className={`grid gap-3 xl:min-h-0 ${assetLibraryOpen ? "xl:grid-rows-[minmax(0,1fr)]" : ""}`}>
-          {assetLibraryOpen ? (
-            <StandardCard eyebrow="Biblioteca" title="" description="Selecione itens para futura insercao incremental na maquete." compact>
+        <aside className={`grid gap-3 xl:min-h-0 ${sidePanelMode === "library" || sidePanelMode === "chat" ? "xl:grid-rows-[minmax(0,1fr)]" : ""}`}>
+          {sidePanelMode === "library" ? (
+            <StandardCard eyebrow="Biblioteca" title="" description="Selecione itens para inserir direto na maquete." compact>
               <div className="library-scroll grid max-h-[70vh] gap-3 overflow-auto pr-1 xl:h-full xl:min-h-0 xl:max-h-none">
                 {ASSET_LIBRARY.map((category) => (
                   <section key={category.id} className="rounded-[5px] border border-white/6 bg-[var(--panel)] p-2.5">
@@ -258,7 +500,7 @@ export function ArchitectLab() {
                               type="button"
                               aria-label={`Adicionar ${item.label}`}
                               title={`Adicionar ${item.label}`}
-                              onClick={() => handleAssetSelect(item.id, item.label)}
+                              onClick={() => handleAssetSelect(item.id)}
                               className="inline-flex h-6 w-6 items-center justify-center rounded-[5px] border border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--accent)] transition hover:border-[var(--accent)]/55 hover:bg-[var(--accent)]/24"
                             >
                               <Plus className="size-3" />
@@ -271,9 +513,58 @@ export function ArchitectLab() {
                 ))}
               </div>
             </StandardCard>
-          ) : (
+          ) : null}
+
+          {sidePanelMode === "chat" ? (
+            <StandardCard eyebrow="Chat" title="" description="Apoio guiado para construir e refinar a maquete." compact>
+              <div className="flex h-full min-h-0 flex-col gap-3">
+                <div className="stealth-scroll flex-1 space-y-2 overflow-y-auto pr-1">
+                  {chatMessages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`rounded-[5px] border px-3 py-2 text-xs leading-5 ${
+                        message.role === "assistant"
+                          ? "border-white/6 bg-[var(--panel)] text-[var(--foreground)]"
+                          : "border-[var(--accent)]/20 bg-[var(--accent)]/12 text-[var(--foreground)]"
+                      }`}
+                    >
+                      <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">
+                        {message.role === "assistant" ? "Guia" : "Voce"}
+                      </p>
+                      <p>{message.content}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <QuickActionButton label="Adicionar sofa" onClick={() => setChatDraft("Adicionar sofa na sala")} />
+                  <QuickActionButton label="Ativar telhado" onClick={() => setChatDraft("Ativar telhado")} />
+                  <QuickActionButton label="Inserir carro" onClick={() => setChatDraft("Adicionar carro compacto")} />
+                  <QuickActionButton label="Proximo passo" onClick={() => setChatDraft("Como continuar refinando a maquete?")} />
+                </div>
+
+                <form onSubmit={handleChatSubmit} className="grid gap-2">
+                  <textarea
+                    value={chatDraft}
+                    onChange={(event) => setChatDraft(event.target.value)}
+                    rows={3}
+                    placeholder="Exemplo: adicionar cadeira, ativar janelas, como comecar..."
+                    className="rounded-[5px] border border-white/8 bg-[var(--panel-strong)] px-3 py-2 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]/35"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex h-9 items-center justify-center rounded-[5px] bg-[var(--accent)] px-3 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+                  >
+                    Enviar ao guia
+                  </button>
+                </form>
+              </div>
+            </StandardCard>
+          ) : null}
+
+          {sidePanelMode === "default" ? (
             <>
-              <StandardCard eyebrow="Signals" title="" description="Telemetria resumida do tracker em tempo real." compact>
+              <StandardCard eyebrow="Signals" title="" description="Telemetria resumida do tracker e da maquete." compact>
                 <div className="grid gap-2">
                   <SignalRow
                     label="Gestos"
@@ -284,10 +575,9 @@ export function ArchitectLab() {
                     }
                   />
                   <SignalRow label="Mao detectada" value={gestureHud.handDetected ? "Sim" : "Nao"} />
-                  <SignalRow label="Maos simultaneas" value={String(gestureHud.detectedHands)} />
+                  <SignalRow label="Objetos" value={String(sceneObjects.length)} />
+                  <SignalRow label="Selecionado" value={selectedObject ? selectedObject.label : "Nenhum"} />
                   <SignalRow label="Pinch distance" value={gestureHud.pinchDistance.toFixed(3)} />
-                  <SignalRow label="Rotation X" value={gestureHud.rotationDeltaX.toFixed(3)} />
-                  <SignalRow label="Rotation Y" value={gestureHud.rotationDeltaY.toFixed(3)} />
                   <SignalRow label="Zoom delta" value={gestureHud.zoomDelta.toFixed(3)} />
                 </div>
               </StandardCard>
@@ -295,28 +585,104 @@ export function ArchitectLab() {
               <StandardCard eyebrow="Stage" title="" description="Leitura compacta do palco e da camera." compact>
                 <div className="grid grid-cols-2 gap-1.5">
                   <EditorBadge compact label="Resolucao" value={`${planModel.metrics.width} x ${planModel.metrics.height}`} />
-                  <EditorBadge compact label="Escala" value={`${planModel.floorWidth.toFixed(1)}m x ${planModel.floorDepth.toFixed(1)}m`} />
+                  <EditorBadge compact label="Escala" value={summary.footprint} />
                   <EditorBadge compact label="Hands" value={gestureHud.handDetected ? String(gestureHud.detectedHands) : "0"} />
-                  <EditorBadge compact label="Estado" value={gestureHud.gestureActive ? "Pinch ativo" : "Observando"} />
+                  <EditorBadge compact label="Recursos" value={String(activeFeatureCount)} />
                 </div>
               </StandardCard>
 
-              <StandardCard eyebrow="Inspector" title="" description="Importacao e metadados do desenho." compact>
-                <div className="grid gap-1.5">
-                  <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
-                    <p className="text-[10px] uppercase tracking-[0.24em]">Origem</p>
-                    <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{planModel.imageUrl ? "Arquivo carregado" : "Modelo padrao"}</p>
+              <StandardCard
+                eyebrow="Inspector"
+                title=""
+                description={selectedObject ? "Edicao do item selecionado na maquete." : "Importacao, presets e resumo da cena."}
+                compact
+              >
+                {selectedObject ? (
+                  <div className="grid gap-2">
+                    <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
+                      <p className="text-[10px] uppercase tracking-[0.24em]">Objeto ativo</p>
+                      <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{selectedObject.label}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <StatLine label="Pos X" value={selectedObject.position.x.toFixed(2)} compact />
+                      <StatLine label="Pos Z" value={selectedObject.position.z.toFixed(2)} compact />
+                      <StatLine label="Rot Y" value={selectedObject.rotationY.toFixed(2)} compact />
+                      <StatLine label="Scale" value={selectedObject.scale.toFixed(2)} compact />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <SmallActionButton label="Esq" onClick={() => moveSelectedObject(-0.6, 0)} />
+                      <SmallActionButton label="Frente" onClick={() => moveSelectedObject(0, -0.6)} />
+                      <SmallActionButton label="Dir" onClick={() => moveSelectedObject(0.6, 0)} />
+                      <SmallActionButton label="Tras" onClick={() => moveSelectedObject(0, 0.6)} />
+                      <SmallActionButton label="Rot -" onClick={() => rotateSelectedObject(-0.25)} />
+                      <SmallActionButton label="Rot +" onClick={() => rotateSelectedObject(0.25)} />
+                      <SmallActionButton label="Esc -" onClick={() => scaleSelectedObject(-0.08)} />
+                      <SmallActionButton label="Esc +" onClick={() => scaleSelectedObject(0.08)} />
+                      <SmallActionButton label="Centralizar" onClick={() => handleSceneObjectUpdate(selectedObject.id, { position: { x: 0, y: 0, z: 0 } })} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={duplicateSelectedObject}
+                        className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+                      >
+                        <Copy className="size-3.5" />
+                        <span>Duplicar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={removeSelectedObject}
+                        className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+                      >
+                        <Trash2 className="size-3.5" />
+                        <span>Remover</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <StatLine label="Width" value={String(planModel.metrics.width)} compact />
-                    <StatLine label="Height" value={String(planModel.metrics.height)} compact />
-                    <StatLine label="Floor X" value={`${planModel.floorWidth.toFixed(1)}m`} compact />
-                    <StatLine label="Floor Z" value={`${planModel.floorDepth.toFixed(1)}m`} compact />
+                ) : (
+                  <div className="grid gap-2">
+                    <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
+                      <p className="text-[10px] uppercase tracking-[0.24em]">Origem</p>
+                      <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{planModel.sourceLabel}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <StatLine label="Width" value={String(planModel.metrics.width)} compact />
+                      <StatLine label="Height" value={String(planModel.metrics.height)} compact />
+                      <StatLine label="Objetos" value={String(summary.objectCount)} compact />
+                      <StatLine label="Externos" value={String(summary.outdoorCount)} compact />
+                    </div>
+
+                    <div className="grid gap-1.5">
+                      <FeatureToggleRow
+                        label="Telhado"
+                        active={architecturalFeatures.roofEnabled}
+                        onClick={() => applyArchitecturalFeature("roofEnabled", "Telhado", !architecturalFeatures.roofEnabled)}
+                      />
+                      <FeatureToggleRow
+                        label="Portas"
+                        active={architecturalFeatures.doorsEnabled}
+                        onClick={() => applyArchitecturalFeature("doorsEnabled", "Portas", !architecturalFeatures.doorsEnabled)}
+                      />
+                      <FeatureToggleRow
+                        label="Janelas"
+                        active={architecturalFeatures.windowsEnabled}
+                        onClick={() => applyArchitecturalFeature("windowsEnabled", "Janelas", !architecturalFeatures.windowsEnabled)}
+                      />
+                      <FeatureToggleRow
+                        label="Jardim"
+                        active={architecturalFeatures.gardenEnabled}
+                        onClick={() => applyArchitecturalFeature("gardenEnabled", "Jardim", !architecturalFeatures.gardenEnabled)}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </StandardCard>
             </>
-          )}
+          ) : null}
         </aside>
       </section>
 
@@ -338,7 +704,16 @@ export function ArchitectLab() {
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden rounded-[5px]">
-              <ThreeHouseViewer planModel={planModel} gestureRef={gestureRef} gesturesLocked={isGestureMovementLocked} />
+              <ThreeHouseViewer
+                planModel={planModel}
+                gestureRef={gestureRef}
+                gesturesLocked={isGestureMovementLocked}
+                sceneObjects={sceneObjects}
+                selectedSceneObjectId={selectedSceneObjectId}
+                architecturalFeatures={architecturalFeatures}
+                onSelectSceneObject={setSelectedSceneObjectId}
+                onUpdateSceneObject={handleSceneObjectUpdate}
+              />
             </div>
           </div>
         </div>
@@ -392,6 +767,36 @@ function PanelFallback({ label, description }: { label: string; description: str
   );
 }
 
+function HeaderButton({
+  active,
+  icon,
+  label,
+  onClick,
+  badge,
+  minWidthClass = "min-w-[132px]",
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  badge?: number;
+  minWidthClass?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex h-9 ${minWidthClass} items-center justify-center gap-2 rounded-[5px] border px-3 py-2 text-xs transition ${
+        active ? "border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--foreground)]" : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+      {typeof badge === "number" ? <span className="rounded-[4px] bg-white/6 px-1.5 py-0.5 text-[10px] text-[var(--foreground)]">{badge}</span> : null}
+    </button>
+  );
+}
+
 function ToolbarChip({
   icon,
   label,
@@ -412,6 +817,53 @@ function ToolbarChip({
       {icon}
       <span>{label}</span>
     </div>
+  );
+}
+
+function FlowPill({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div className={`rounded-[5px] border px-3 py-2 text-xs ${active ? "border-[var(--accent)]/32 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"}`}>
+      {label}
+    </div>
+  );
+}
+
+function QuickActionButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-7 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2.5 text-[10px] text-[var(--muted)] transition hover:border-[var(--accent)]/35 hover:text-[var(--foreground)]"
+    >
+      {label}
+    </button>
+  );
+}
+
+function SmallActionButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-8 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2 text-[10px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+    >
+      {label}
+    </button>
+  );
+}
+
+function FeatureToggleRow({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-between rounded-[5px] border px-2.5 py-2 text-xs transition ${
+        active ? "border-[var(--accent)]/35 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"
+      }`}
+    >
+      <span>{label}</span>
+      <span>{active ? "Ativo" : "Desligado"}</span>
+    </button>
   );
 }
 

@@ -1,18 +1,4 @@
-export type AssetLibraryItem = {
-  id: string;
-  label: string;
-  category: string;
-  source: string;
-  license: string;
-  url: string;
-};
-
-export type AssetLibraryCategory = {
-  id: string;
-  label: string;
-  description: string;
-  items: AssetLibraryItem[];
-};
+import type { AssetLibraryCategory } from "@/lib/types";
 
 export const ASSET_LIBRARY: AssetLibraryCategory[] = [
   {
@@ -27,6 +13,14 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/5v5e10T-2zv",
+        prototype: {
+          kind: "sofa",
+          placement: "indoor",
+          size: { x: 2.8, y: 1.1, z: 1.2 },
+          color: "#b98967",
+          accentColor: "#7a5238",
+          defaultScale: 1,
+        },
       },
       {
         id: "sofa-alt",
@@ -35,6 +29,14 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/5ngh9YauT9G",
+        prototype: {
+          kind: "sofa",
+          placement: "indoor",
+          size: { x: 2.4, y: 1, z: 1.05 },
+          color: "#9c6b57",
+          accentColor: "#594033",
+          defaultScale: 1,
+        },
       },
       {
         id: "tv",
@@ -43,6 +45,14 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/7-dgp0L8elg",
+        prototype: {
+          kind: "tv",
+          placement: "indoor",
+          size: { x: 1.8, y: 1.2, z: 0.18 },
+          color: "#1f2732",
+          accentColor: "#0b0f15",
+          defaultScale: 1,
+        },
       },
       {
         id: "table-chairs",
@@ -51,6 +61,69 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/8YCrudS_CF9",
+        prototype: {
+          kind: "table-set",
+          placement: "indoor",
+          size: { x: 2.4, y: 1.1, z: 1.8 },
+          color: "#a7774e",
+          accentColor: "#ead5bf",
+          defaultScale: 1,
+        },
+      },
+      {
+        id: "chair",
+        label: "Cadeira",
+        category: "Sala",
+        source: "Kenney",
+        license: "Kenney License",
+        url: "https://www.kenney.nl/assets/furniture-kit",
+        prototype: {
+          kind: "chair",
+          placement: "indoor",
+          size: { x: 0.7, y: 1, z: 0.7 },
+          color: "#8d6646",
+          accentColor: "#52382a",
+          defaultScale: 1,
+        },
+      },
+    ],
+  },
+  {
+    id: "bedroom",
+    label: "Dormitorio",
+    description: "Elementos principais para quartos e ambientacao interna.",
+    items: [
+      {
+        id: "bed",
+        label: "Cama",
+        category: "Dormitorio",
+        source: "Kenney",
+        license: "Kenney License",
+        url: "https://www.kenney.nl/assets/furniture-kit",
+        prototype: {
+          kind: "bed",
+          placement: "indoor",
+          size: { x: 2.2, y: 0.85, z: 1.7 },
+          color: "#d8dce3",
+          accentColor: "#7b8b9e",
+          defaultScale: 1,
+        },
+      },
+      {
+        id: "side-table",
+        label: "Mesa lateral",
+        category: "Dormitorio",
+        source: "Kenney",
+        license: "Kenney License",
+        url: "https://www.kenney.nl/assets/furniture-kit",
+        prototype: {
+          kind: "decor",
+          placement: "indoor",
+          size: { x: 0.7, y: 0.7, z: 0.7 },
+          color: "#8f6746",
+          accentColor: "#4a3326",
+          defaultScale: 1,
+        },
       },
     ],
   },
@@ -66,6 +139,14 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/SohHeimkcz",
+        prototype: {
+          kind: "tree",
+          placement: "outdoor",
+          size: { x: 1.4, y: 2.8, z: 1.4 },
+          color: "#4d8c52",
+          accentColor: "#654a35",
+          defaultScale: 1,
+        },
       },
       {
         id: "trees-pack",
@@ -74,22 +155,30 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/IhgVEY2OQ9",
+        prototype: {
+          kind: "tree",
+          placement: "outdoor",
+          size: { x: 1.8, y: 3.2, z: 1.8 },
+          color: "#3e7e49",
+          accentColor: "#5a4330",
+          defaultScale: 1,
+        },
       },
       {
-        id: "tree-cc0",
-        label: "Arvore CC0",
+        id: "garden-module",
+        label: "Modulo de jardim",
         category: "Externo",
-        source: "Poly Pizza",
-        license: "CC0",
-        url: "https://poly.pizza/m/Ufuhx2aA2Y",
-      },
-      {
-        id: "nature-catalog",
-        label: "Catalogo de natureza",
-        category: "Externo",
-        source: "Poly Pizza",
-        license: "Misto",
+        source: "Curadoria interna",
+        license: "Uso interno",
         url: "https://poly.pizza/explore/Nature",
+        prototype: {
+          kind: "garden",
+          placement: "outdoor",
+          size: { x: 2.6, y: 0.25, z: 1.4 },
+          color: "#628e48",
+          accentColor: "#b18e66",
+          defaultScale: 1,
+        },
       },
     ],
   },
@@ -105,53 +194,85 @@ export const ASSET_LIBRARY: AssetLibraryCategory[] = [
         source: "Poly Pizza",
         license: "CC0",
         url: "https://poly.pizza/m/548lb3MmT3",
-      },
-      {
-        id: "car-kit",
-        label: "Car Kit bundle",
-        category: "Mobilidade",
-        source: "Kenney",
-        license: "Kenney License",
-        url: "https://www.kenney.nl/assets/car-kit",
+        prototype: {
+          kind: "car",
+          placement: "outdoor",
+          size: { x: 3.8, y: 1.35, z: 1.9 },
+          color: "#5b87c8",
+          accentColor: "#161d26",
+          defaultScale: 1,
+        },
       },
       {
         id: "learning-cars",
-        label: "Colecao de carros",
+        label: "Carro sedan",
         category: "Mobilidade",
         source: "Poly Pizza",
         license: "CC BY",
         url: "https://poly.pizza/m/4Z1_Me2ww83",
+        prototype: {
+          kind: "car",
+          placement: "outdoor",
+          size: { x: 4.2, y: 1.45, z: 2.0 },
+          color: "#8f5f53",
+          accentColor: "#12181f",
+          defaultScale: 1,
+        },
       },
     ],
   },
   {
-    id: "bundles",
-    label: "Bibliotecas",
-    description: "Pacotes inteiros para acelerar expansao futura da biblioteca.",
+    id: "architecture",
+    label: "Arquitetura",
+    description: "Presets para enriquecer cobertura, aberturas e fachada da maquete.",
     items: [
       {
-        id: "furniture-kit",
-        label: "Furniture Kit",
-        category: "Bibliotecas",
-        source: "Kenney via Poly Pizza",
-        license: "CC0 / bundle",
-        url: "https://poly.pizza/bundle/Furniture-Kit-NoG1sEUD1z",
-      },
-      {
-        id: "furniture-explore",
-        label: "Furniture & Decor",
-        category: "Bibliotecas",
-        source: "Poly Pizza",
-        license: "Misto",
+        id: "roof-preset",
+        label: "Telhado",
+        category: "Arquitetura",
+        source: "Preset interno",
+        license: "Uso interno",
         url: "https://poly.pizza/explore/Furniture-and-Decor",
+        prototype: {
+          kind: "roof",
+          placement: "architectural",
+          size: { x: 0, y: 0, z: 0 },
+          color: "#f3ede5",
+          accentColor: "#c78548",
+          defaultScale: 1,
+        },
       },
       {
-        id: "kenney-assets",
-        label: "Catalogo Kenney",
-        category: "Bibliotecas",
-        source: "Kenney",
-        license: "Kenney License",
+        id: "door-preset",
+        label: "Portas",
+        category: "Arquitetura",
+        source: "Preset interno",
+        license: "Uso interno",
         url: "https://www.kenney.nl/assets",
+        prototype: {
+          kind: "door",
+          placement: "architectural",
+          size: { x: 0, y: 0, z: 0 },
+          color: "#8a6141",
+          accentColor: "#d8d4ce",
+          defaultScale: 1,
+        },
+      },
+      {
+        id: "window-preset",
+        label: "Janelas",
+        category: "Arquitetura",
+        source: "Preset interno",
+        license: "Uso interno",
+        url: "https://www.kenney.nl/assets",
+        prototype: {
+          kind: "window",
+          placement: "architectural",
+          size: { x: 0, y: 0, z: 0 },
+          color: "#6b839c",
+          accentColor: "#dfe7ef",
+          defaultScale: 1,
+        },
       },
     ],
   },
