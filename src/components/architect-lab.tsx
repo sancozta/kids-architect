@@ -392,14 +392,14 @@ export function ArchitectLab() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[2400px] flex-col gap-3 overflow-auto bg-[var(--shell)] px-3 py-3 text-[var(--foreground)] xl:h-[100svh] xl:overflow-hidden 2xl:px-4 min-[2200px]:max-w-none min-[2200px]:px-6 min-[2600px]:px-8">
-      <header className="glass-panel relative z-40 flex flex-col gap-3 rounded-[5px] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+      <header className="glass-panel relative z-40 flex flex-col gap-3 rounded-[5px] px-4 py-[14px] lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-[var(--accent)] text-white shadow-[0_12px_24px_rgba(223,117,52,0.28)]">
-            <DraftingCompass className="size-5" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-[5px] bg-[var(--accent)] text-white shadow-[0_12px_24px_rgba(223,117,52,0.28)]">
+            <DraftingCompass className="size-[18px]" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">Workspace</p>
-            <h1 className="truncate text-lg font-medium">Kids Architect Editor</h1>
+            <p className="ui-eyebrow">Workspace</p>
+            <h1 className="truncate text-[22px] font-semibold leading-[1.02]">Kids Architect Editor</h1>
           </div>
         </div>
 
@@ -445,7 +445,7 @@ export function ArchitectLab() {
             minWidthClass="min-w-[108px]"
           />
           <ToolbarChip icon={<Activity className="size-3.5" />} label={isConverting ? "Convertendo planta" : "Editor pronto"} tone={isBusy ? "accent" : "neutral"} />
-          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[5px] bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]">
+          <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[5px] bg-[var(--accent)] px-3.5 text-[11px] font-semibold text-white transition hover:bg-[var(--accent-strong)]">
             <Upload className="size-3.5" />
             <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
             Importar planta
@@ -453,7 +453,7 @@ export function ArchitectLab() {
         </div>
       </header>
 
-      <section className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[210px_minmax(0,1fr)_286px] 2xl:grid-cols-[228px_minmax(0,1.24fr)_310px] min-[2200px]:grid-cols-[248px_minmax(0,1.5fr)_340px] min-[2600px]:grid-cols-[272px_minmax(0,1.78fr)_372px]">
+      <section className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[220px_minmax(0,1fr)_300px] 2xl:grid-cols-[236px_minmax(0,1.18fr)_320px] min-[2200px]:grid-cols-[252px_minmax(0,1.36fr)_340px] min-[2600px]:grid-cols-[266px_minmax(0,1.54fr)_360px]">
         <aside className={`grid gap-3 xl:min-h-0 ${isHelpOpen ? "xl:grid-rows-[auto_auto]" : "xl:grid-rows-[auto]"}`}>
           <StandardCard eyebrow="Ferramentas" title="" description="Fluxo principal de construcao da maquete." compact>
             <div className="grid gap-2">
@@ -478,8 +478,8 @@ export function ArchitectLab() {
         </aside>
 
         <section className="order-first grid gap-3 xl:order-none xl:min-h-0">
-          <div className="grid gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_300px] min-[2200px]:xl:grid-cols-[minmax(0,1fr)_328px] min-[2600px]:xl:grid-cols-[minmax(0,1fr)_356px]">
-            <div className="glass-panel relative min-h-[460px] overflow-hidden rounded-[5px] p-2 xl:min-h-0">
+          <div className="grid gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_312px] min-[2200px]:xl:grid-cols-[minmax(0,1fr)_328px] min-[2600px]:xl:grid-cols-[minmax(0,1fr)_344px]">
+            <div className="glass-panel relative min-h-[472px] overflow-hidden rounded-[5px] p-[10px] xl:min-h-0">
               <ThreeHouseViewer
                 planModel={planModel}
                 gestureRef={gestureRef}
@@ -496,18 +496,18 @@ export function ArchitectLab() {
 
             <div className="grid gap-3 content-start xl:min-h-0 xl:grid-rows-[auto_auto_minmax(0,1fr)]">
               <StandardCard eyebrow="Capture" title="" description="Retorno visual do tracking e das maos detectadas." compact>
-                <div className="h-[180px] overflow-hidden rounded-[5px] xl:h-[170px]">
+                <div className="h-[176px] overflow-hidden rounded-[5px] xl:h-[168px]">
                   <GestureTracker onGesture={handleGesture} />
                 </div>
               </StandardCard>
 
               <StandardCard eyebrow="Referencia" title="" description="Preview do arquivo atual no editor." compact>
-                <div className="h-[235px] overflow-hidden rounded-[5px] border border-white/6 bg-[var(--panel-strong)]">
+                <div className="h-[228px] overflow-hidden rounded-[5px] border border-white/6 bg-[var(--panel-strong)]">
                   {planModel.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={planModel.imageUrl} alt="Planta enviada" className="h-full w-full object-cover object-center" />
                   ) : (
-                    <div className="flex h-full items-center justify-center gap-2 bg-[linear-gradient(135deg,#161d26,#232c36)] px-4 text-center text-sm text-[var(--muted)]">
+                    <div className="flex h-full items-center justify-center gap-2 bg-[linear-gradient(135deg,#161d26,#232c36)] px-4 text-center text-[13px] leading-[18px] text-[var(--muted)]">
                       <FileImage className="size-5 text-[var(--accent)]" />
                       <p>Nenhuma planta importada.</p>
                     </div>
@@ -537,7 +537,7 @@ export function ArchitectLab() {
                 {ASSET_LIBRARY.map((category) => (
                   <section key={category.id} className="rounded-[5px] border border-white/6 bg-[var(--panel)] p-2.5">
                     <div className="mb-2">
-                      <p className="text-xs uppercase tracking-[0.18em] text-[var(--foreground)]">{category.label}</p>
+                      <p className="ui-eyebrow text-[10px] text-[var(--foreground)]">{category.label}</p>
                       <p className="mt-0.5 text-[11px] leading-4 text-[var(--muted)]">{category.description}</p>
                     </div>
 
@@ -546,7 +546,7 @@ export function ArchitectLab() {
                         <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2">
                           <div className="min-w-0">
                             <p className="truncate text-xs text-[var(--foreground)]">{item.label}</p>
-                            <p className="mt-0.5 text-[10px] leading-4 text-[var(--muted)]">
+                            <p className="mt-0.5 text-[10px] leading-[15px] text-[var(--muted)]">
                               {item.source} • {item.license}
                             </p>
                           </div>
@@ -555,7 +555,7 @@ export function ArchitectLab() {
                               href={item.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center justify-center rounded-[5px] border border-white/8 px-2 py-1 text-[10px] text-[var(--muted)] transition hover:border-[var(--accent)]/30 hover:text-[var(--foreground)]"
+                              className="inline-flex items-center justify-center rounded-[5px] border border-white/8 px-2 py-1 text-[10px] font-medium text-[var(--muted)] transition hover:border-[var(--accent)]/30 hover:text-[var(--foreground)]"
                             >
                               <ExternalLink className="size-3" />
                             </a>
@@ -591,7 +591,7 @@ export function ArchitectLab() {
                           : "border-[var(--accent)]/20 bg-[var(--accent)]/12 text-[var(--foreground)]"
                       }`}
                     >
-                      <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">
+                      <p className="ui-eyebrow mb-1 text-[9px]">
                         {message.role === "assistant" ? "Guia" : "Voce"}
                       </p>
                       <p>{message.content}</p>
@@ -664,9 +664,9 @@ export function ArchitectLab() {
                 <div className="stealth-scroll h-full overflow-y-auto pr-1">
                   {selectedObject ? (
                     <div className="grid gap-2">
-                      <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
-                        <p className="text-[10px] uppercase tracking-[0.24em]">Objeto ativo</p>
-                        <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{selectedObject.label}</p>
+                      <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-[13px] text-[var(--muted)]">
+                        <p className="ui-eyebrow text-[9px]">Objeto ativo</p>
+                        <p className="mt-1 text-[12px] leading-[16px] font-medium text-[var(--foreground)]">{selectedObject.label}</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-1.5">
@@ -752,7 +752,7 @@ export function ArchitectLab() {
           <div className="glass-panel flex h-full flex-col overflow-hidden rounded-[5px] p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">Stage</p>
+                <p className="ui-eyebrow">Stage</p>
                 <h2 className="mt-1 text-base font-medium">Maquete 3D expandida</h2>
               </div>
               <button
@@ -800,13 +800,13 @@ function StandardCard({
   compact?: boolean;
 }) {
   return (
-    <div className={`glass-panel flex h-full flex-col overflow-hidden rounded-[5px] ${compact ? "p-3" : "p-4"} xl:min-h-0`}>
-      <div className={`flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between ${compact ? "mb-3" : "mb-4"}`}>
+    <div className={`glass-panel flex h-full flex-col overflow-hidden rounded-[5px] ${compact ? "p-[13px]" : "p-4"} xl:min-h-0`}>
+      <div className={`flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between ${compact ? "mb-2.5" : "mb-3.5"}`}>
         <div className="max-w-2xl">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">{eyebrow}</p>
-          {title ? <h2 className={`mt-1 ${compact ? "text-base" : "text-lg"} font-medium`}>{title}</h2> : null}
+          <p className="ui-eyebrow">{eyebrow}</p>
+          {title ? <h2 className={`mt-1 ${compact ? "text-[15px]" : "text-[18px]"} font-semibold leading-[1.08]`}>{title}</h2> : null}
           {description ? (
-            <p className={`${title ? "mt-1" : "mt-0.5"} text-[var(--muted)] ${compact ? "text-xs leading-4" : "text-sm leading-5"}`}>
+            <p className={`${title ? "mt-1" : "mt-0.5"} text-[var(--muted)] ${compact ? "text-[12px] leading-[18px]" : "text-[13px] leading-[20px]"}`}>
               {description}
             </p>
           ) : null}
@@ -822,8 +822,8 @@ function PanelFallback({ label, description }: { label: string; description: str
   return (
     <div className="flex h-full min-h-[220px] items-center justify-center rounded-[5px] border border-dashed border-white/10 bg-[var(--panel-strong)] px-4 text-center">
       <div>
-        <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{label}</p>
-        <p className="mt-2 text-sm text-[var(--foreground)]">{description}</p>
+        <p className="ui-eyebrow">{label}</p>
+        <p className="mt-2 text-[13px] leading-[18px] text-[var(--foreground)]">{description}</p>
       </div>
     </div>
   );
@@ -848,13 +848,13 @@ function HeaderButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex h-9 ${minWidthClass} items-center justify-center gap-2 rounded-[5px] border px-3 py-2 text-xs transition ${
+      className={`inline-flex h-9 ${minWidthClass} items-center justify-center gap-2 rounded-[5px] border px-3.5 text-[11px] font-medium transition ${
         active ? "border-[var(--accent)]/35 bg-[var(--accent)]/16 text-[var(--foreground)]" : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
       }`}
     >
       {icon}
       <span>{label}</span>
-      {typeof badge === "number" ? <span className="rounded-[4px] bg-white/6 px-1.5 py-0.5 text-[10px] text-[var(--foreground)]">{badge}</span> : null}
+      {typeof badge === "number" ? <span className="ui-mono rounded-[4px] bg-white/6 px-1.5 py-0.5 text-[10px] text-[var(--foreground)]">{badge}</span> : null}
     </button>
   );
 }
@@ -870,7 +870,7 @@ function ToolbarChip({
 }) {
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-[5px] border px-3 py-2 text-xs ${
+      className={`inline-flex h-9 items-center gap-2 rounded-[5px] border px-3.5 text-[11px] font-medium ${
         tone === "accent"
           ? "border-[var(--accent)]/30 bg-[var(--accent)]/14 text-[var(--foreground)]"
           : "border-white/8 bg-[var(--panel-strong)] text-[var(--muted)]"
@@ -884,7 +884,7 @@ function ToolbarChip({
 
 function FlowPill({ label, active }: { label: string; active: boolean }) {
   return (
-    <div className={`rounded-[5px] border px-3 py-2 text-xs ${active ? "border-[var(--accent)]/32 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"}`}>
+    <div className={`min-h-[38px] rounded-[5px] border px-3 py-2 text-[11px] font-medium leading-[16px] ${active ? "border-[var(--accent)]/32 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"}`}>
       {label}
     </div>
   );
@@ -895,7 +895,7 @@ function QuickActionButton({ label, onClick }: { label: string; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-7 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2.5 text-[10px] text-[var(--muted)] transition hover:border-[var(--accent)]/35 hover:text-[var(--foreground)]"
+      className="inline-flex h-7 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2.5 text-[10px] font-medium text-[var(--muted)] transition hover:border-[var(--accent)]/35 hover:text-[var(--foreground)]"
     >
       {label}
     </button>
@@ -907,7 +907,7 @@ function SmallActionButton({ label, onClick }: { label: string; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2 text-[10px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+      className="inline-flex h-8 items-center justify-center rounded-[5px] border border-white/8 bg-[var(--panel)] px-2 text-[10px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
     >
       {label}
     </button>
@@ -923,8 +923,8 @@ function FeatureToggleRow({ label, active, onClick }: { label: string; active: b
         active ? "border-[var(--accent)]/35 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"
       }`}
     >
-      <span className="text-[10px] uppercase tracking-[0.16em]">{label}</span>
-      <span className="text-xs text-[var(--foreground)]">{active ? "Ativo" : "Desligado"}</span>
+      <span className="ui-mono text-[10px] uppercase">{label}</span>
+      <span className="text-[12px] font-medium text-[var(--foreground)]">{active ? "Ativo" : "Desligado"}</span>
     </button>
   );
 }
@@ -932,8 +932,8 @@ function FeatureToggleRow({ label, active, onClick }: { label: string; active: b
 function EditorBadge({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className={`rounded-[5px] border border-white/6 bg-[var(--panel)] ${compact ? "px-2 py-1.5" : "px-3 py-2"}`}>
-      <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</p>
-      <p className={`mt-0.5 text-[var(--foreground)] ${compact ? "text-xs leading-4" : "text-sm"}`}>{value}</p>
+      <p className="ui-mono text-[9px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</p>
+      <p className={`mt-1 text-[var(--foreground)] ${compact ? "text-[12px] leading-[16px] font-medium" : "text-[13px] font-medium"}`}>{value}</p>
     </div>
   );
 }
@@ -941,8 +941,8 @@ function EditorBadge({ label, value, compact = false }: { label: string; value: 
 function StatLine({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className={`rounded-[5px] border border-white/6 bg-[var(--panel-strong)] ${compact ? "px-2.5 py-1.5" : "px-3 py-3"}`}>
-      <dt className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</dt>
-      <dd className={`mt-0.5 text-[var(--foreground)] ${compact ? "text-sm leading-4" : "text-base"}`}>{value}</dd>
+      <dt className="ui-mono text-[9px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</dt>
+      <dd className={`mt-1 text-[var(--foreground)] ${compact ? "text-[13px] leading-[16px] font-medium" : "text-[15px] font-medium"}`}>{value}</dd>
     </div>
   );
 }
@@ -950,8 +950,8 @@ function StatLine({ label, value, compact = false }: { label: string; value: str
 function SignalRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-1.5">
-      <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
-      <span className="text-xs text-[var(--foreground)]">{value}</span>
+      <span className="ui-mono text-[9px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</span>
+      <span className="text-[12px] font-medium text-[var(--foreground)]">{value}</span>
     </div>
   );
 }
@@ -969,8 +969,8 @@ function GestureLegendItem({
     <div className="grid grid-cols-[40px_1fr] items-center gap-2 rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2 py-1.5">
       <GestureThumb variant={variant} />
       <div className="min-w-0">
-        <p className="text-xs text-[var(--foreground)]">{title}</p>
-        <p className="mt-0.5 line-clamp-2 text-[10px] leading-3.5 text-[var(--muted)]">{description}</p>
+        <p className="text-[11px] font-medium text-[var(--foreground)]">{title}</p>
+        <p className="mt-0.5 line-clamp-2 text-[10px] leading-[14px] text-[var(--muted)]">{description}</p>
       </div>
     </div>
   );

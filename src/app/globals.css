@@ -30,16 +30,42 @@ body {
   margin: 0;
   overflow: hidden;
   color: var(--foreground);
-  font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-image:
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 2rem 2rem;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: -0.035em;
+}
+
 button,
-input {
+input,
+textarea {
   font: inherit;
+}
+
+.ui-eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ui-mono {
+  font-family: var(--font-mono), monospace;
 }
 
 .glass-panel {
