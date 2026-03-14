@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CircleHelp, DraftingCompass, ExternalLink, Expand, FileImage, Lock, LockOpen, Minimize2, Plus, Upload } from "lucide-react";
+import { Activity, CircleHelp, DraftingCompass, ExternalLink, FileImage, Lock, LockOpen, Minimize2, Plus, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
@@ -181,16 +181,12 @@ export function ArchitectLab() {
         <section className="order-first grid gap-3 xl:order-none xl:min-h-0">
           <div className="grid gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px] min-[2200px]:xl:grid-cols-[minmax(0,1fr)_380px] min-[2600px]:xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="glass-panel relative min-h-[420px] overflow-hidden rounded-[5px] p-2 xl:min-h-0">
-              <button
-                type="button"
-                onClick={() => setIsViewerExpanded(true)}
-                className="absolute bottom-3 right-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-[5px] border border-white/10 bg-[rgba(11,16,22,0.82)] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
-                aria-label="Expandir maquete 3D"
-                title="Expandir maquete 3D"
-              >
-                <Expand className="size-4" />
-              </button>
-              <ThreeHouseViewer planModel={planModel} gestureRef={gestureRef} gesturesLocked={isGestureMovementLocked} />
+              <ThreeHouseViewer
+                planModel={planModel}
+                gestureRef={gestureRef}
+                gesturesLocked={isGestureMovementLocked}
+                onExpand={() => setIsViewerExpanded(true)}
+              />
             </div>
 
             <div className="grid gap-3 content-start xl:min-h-0 xl:grid-rows-[auto_auto_minmax(0,1fr)]">
