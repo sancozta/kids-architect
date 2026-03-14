@@ -10,6 +10,11 @@ type AssistantContext = {
 
 export type AssistantIntent =
   | { type: "open-library" }
+  | { type: "open-help" }
+  | { type: "toggle-snap"; enabled: boolean }
+  | { type: "generate-plan"; prompt: string }
+  | { type: "duplicate-selected" }
+  | { type: "remove-selected" }
   | { type: "toggle-feature"; feature: keyof ArchitecturalFeatures; enabled: boolean }
   | { type: "add-asset"; assetId: string };
 
@@ -24,6 +29,26 @@ export function buildAssistantReply({ message, planModel, sceneObjects, features
 
   if (containsAny(normalized, ["biblioteca", "objeto", "mobilia", "mobiliario"])) {
     intents.push({ type: "open-library" });
+  }
+
+  if (containsAny(normalized, ["ajuda", "mostrar gestos", "mostrar ajuda"])) {
+    intents.push({ type: "open-help" });
+  }
+
+  if (containsAny(normalized, ["ligar snap", "ativar snap", "snap"])) {
+    intents.push({ type: "toggle-snap", enabled: !containsAny(normalized, ["desligar snap", "desativar snap"]) });
+  }
+
+  if (containsAny(normalized, ["duplicar objeto", "duplicar selecionado", "copiar objeto"])) {
+    intents.push({ type: "duplicate-selected" });
+  }
+
+  if (containsAny(normalized, ["remover objeto", "apagar objeto", "excluir objeto"])) {
+    intents.push({ type: "remove-selected" });
+  }
+
+  if (containsAny(normalized, ["criar planta", "gerar planta", "desenhar planta", "planta 2d"])) {
+    intents.push({ type: "generate-plan", prompt: message });
   }
 
   if (containsAny(normalized, ["telhado", "cobertura"])) {
@@ -104,6 +129,22 @@ function formatIntentSummary(intents: AssistantIntent[]) {
 
       if (intent.type === "open-library") {
         return "abertura da biblioteca";
+      }
+
+      if (intent.type === "open-help") {
+        return "abertura da ajuda";
+      }
+
+      if (intent.type === "toggle-snap") {
+        return "ajuste de snap";
+      }
+
+      if (intent.type === "generate-plan") {
+        return "geracao de planta";
+      }
+
+      if (intent.type === "duplicate-selected" || intent.type === "remove-selected") {
+        return "acao sobre o item selecionado";
       }
 
       return "ajuste arquitetonico";

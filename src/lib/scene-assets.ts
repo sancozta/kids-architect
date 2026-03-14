@@ -51,6 +51,14 @@ export function clampSceneObjectPosition(position: Vec3, planModel: PlanModel, p
   return { x, y: 0, z };
 }
 
+export function snapPositionToGrid(position: Vec3, step = 0.5): Vec3 {
+  return {
+    x: snapValue(position.x, step),
+    y: position.y,
+    z: snapValue(position.z, step),
+  };
+}
+
 export function duplicateSceneObject(object: SceneObject, planModel: PlanModel): SceneObject {
   return {
     ...object,
@@ -79,4 +87,8 @@ export function summarizeProject(planModel: PlanModel, sceneObjects: SceneObject
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function snapValue(value: number, step: number) {
+  return Math.round(value / step) * step;
 }

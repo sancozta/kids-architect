@@ -16,6 +16,7 @@ type ViewerProps = {
   architecturalFeatures?: ArchitecturalFeatures;
   onSelectSceneObject?: (id: string | null) => void;
   onUpdateSceneObject?: (id: string, patch: Partial<SceneObject>) => void;
+  snapEnabled?: boolean;
 };
 
 type ViewerRuntime = {
@@ -46,6 +47,7 @@ export function ThreeHouseViewer({
   },
   onSelectSceneObject,
   onUpdateSceneObject,
+  snapEnabled = true,
 }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<ViewerRuntime | null>(null);
@@ -207,9 +209,9 @@ export function ThreeHouseViewer({
       if (dragRef.current && raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         onUpdateRef.current?.(dragRef.current.id, {
           position: {
-            x: dragPoint.x - dragRef.current.offset.x,
+            x: snapEnabled ? snapToStep(dragPoint.x - dragRef.current.offset.x, 0.5) : dragPoint.x - dragRef.current.offset.x,
             y: 0,
-            z: dragPoint.z - dragRef.current.offset.z,
+            z: snapEnabled ? snapToStep(dragPoint.z - dragRef.current.offset.z, 0.5) : dragPoint.z - dragRef.current.offset.z,
           },
         });
         return;
@@ -305,7 +307,7 @@ export function ThreeHouseViewer({
       }
       runtimeRef.current = null;
     };
-  }, [gestureRef]);
+  }, [gestureRef, snapEnabled]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -412,6 +414,11 @@ function syncSceneObjects(runtime: ViewerRuntime, sceneObjects: SceneObject[], s
 }
 
 function applySelectionState(group: THREE.Group, selected: boolean) {
+  const gizmo = group.userData.selectionGizmo as THREE.Group | undefined;
+  if (gizmo) {
+    gizmo.visible = selected;
+  }
+
   group.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!("material" in mesh) || !mesh.material) {
@@ -715,6 +722,11 @@ function buildSceneObjectMesh(sceneObject: SceneObject) {
     object.userData.sceneObjectId = sceneObject.id;
   });
 
+  const selectionGizmo = createSelectionGizmo(sceneObject.size);
+  selectionGizmo.visible = false;
+  group.userData.selectionGizmo = selectionGizmo;
+  group.add(selectionGizmo);
+
   return group;
 }
 
@@ -742,4 +754,60 @@ function disposeGroup(object: THREE.Object3D) {
       mesh.material.dispose();
     }
   });
+}
+
+function snapToStep(value: number, step: number) {
+  return Math.round(value / step) * step;
+}
+
+function createSelectionGizmo(size: SceneObject["size"]) {
+  const group = new THREE.Group();
+  const radiusX = Math.max(size.x / 2 + 0.22, 0.45);
+  const radiusZ = Math.max(size.z / 2 + 0.22, 0.45);
+  const color = "#df7534";
+
+  const corners = [
+    new THREE.Vector3(-radiusX, 0.03, -radiusZ),
+    new THREE.Vector3(radiusX, 0.03, -radiusZ),
+    new THREE.Vector3(radiusX, 0.03, radiusZ),
+    new THREE.Vector3(-radiusX, 0.03, radiusZ),
+  ];
+  const ringGeometry = new THREE.BufferGeometry().setFromPoints([...corners, corners[0]]);
+  const ring = new THREE.Line(
+    ringGeometry,
+    new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  );
+  group.add(ring);
+
+  const xAxis = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-radiusX - 0.2, 0.04, 0), new THREE.Vector3(radiusX + 0.2, 0.04, 0)]),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.72 }),
+  );
+  group.add(xAxis);
+
+  const zAxis = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.04, -radiusZ - 0.2), new THREE.Vector3(0, 0.04, radiusZ + 0.2)]),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.72 }),
+  );
+  group.add(zAxis);
+
+  const handleMaterial = new THREE.MeshBasicMaterial({ color });
+  const handles = [
+    new THREE.Vector3(radiusX + 0.22, 0.05, 0),
+    new THREE.Vector3(-radiusX - 0.22, 0.05, 0),
+    new THREE.Vector3(0, 0.05, radiusZ + 0.22),
+    new THREE.Vector3(0, 0.05, -radiusZ - 0.22),
+  ];
+
+  handles.forEach((position) => {
+    const handle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), handleMaterial.clone());
+    handle.position.copy(position);
+    group.add(handle);
+  });
+
+  return group;
 }

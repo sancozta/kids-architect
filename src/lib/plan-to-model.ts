@@ -77,10 +77,11 @@ function createPlanModelFromImage(image: HTMLImageElement, imageUrl: string, sou
   }
 
   binary = closeBinary(binary, width, height);
+  binary = removeSmallComponents(binary, width, height, 10);
 
   const horizontalSegments = buildMergedSegments(binary, width, height, "horizontal");
   const verticalSegments = buildMergedSegments(binary, width, height, "vertical");
-  const walls = dedupeSegments([...horizontalSegments, ...verticalSegments]);
+  const walls = mergeCollinearSegments(dedupeSegments([...horizontalSegments, ...verticalSegments]));
 
   if (walls.length === 0) {
     throw new Error("Nao foi possivel identificar paredes na imagem. Use uma planta com linhas escuras sobre fundo claro.");
@@ -356,6 +357,105 @@ function dedupeSegments(segments: WallSegment[]) {
       return almostSameCenter && almostSameSize && otherIndex < index;
     });
   });
+}
+
+function removeSmallComponents(binary: Uint8Array, width: number, height: number, minArea: number) {
+  const next = binary.slice();
+  const visited = new Uint8Array(binary.length);
+  const queue: number[] = [];
+
+  for (let index = 0; index < binary.length; index += 1) {
+    if (!binary[index] || visited[index]) {
+      continue;
+    }
+
+    const component: number[] = [];
+    queue.push(index);
+    visited[index] = 1;
+
+    while (queue.length) {
+      const current = queue.pop()!;
+      component.push(current);
+      const x = current % width;
+      const y = Math.floor(current / width);
+
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          if (!offsetX && !offsetY) {
+            continue;
+          }
+
+          const nx = x + offsetX;
+          const ny = y + offsetY;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+            continue;
+          }
+
+          const neighbor = ny * width + nx;
+          if (!binary[neighbor] || visited[neighbor]) {
+            continue;
+          }
+
+          visited[neighbor] = 1;
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    if (component.length < minArea) {
+      component.forEach((pixel) => {
+        next[pixel] = 0;
+      });
+    }
+  }
+
+  return next;
+}
+
+function mergeCollinearSegments(segments: WallSegment[]) {
+  const merged: WallSegment[] = [];
+
+  for (const segment of segments) {
+    const candidate = merged.find((entry) => {
+      const horizontal = segment.width >= segment.depth && entry.width >= entry.depth;
+      const vertical = segment.depth > segment.width && entry.depth > entry.width;
+
+      if (horizontal) {
+        const sameRow = Math.abs(entry.centerZ - segment.centerZ) < 0.18 && Math.abs(entry.depth - segment.depth) < 0.18;
+        const touching = Math.abs(entry.centerX - segment.centerX) <= (entry.width + segment.width) / 2 + 0.35;
+        return sameRow && touching;
+      }
+
+      if (vertical) {
+        const sameColumn = Math.abs(entry.centerX - segment.centerX) < 0.18 && Math.abs(entry.width - segment.width) < 0.18;
+        const touching = Math.abs(entry.centerZ - segment.centerZ) <= (entry.depth + segment.depth) / 2 + 0.35;
+        return sameColumn && touching;
+      }
+
+      return false;
+    });
+
+    if (!candidate) {
+      merged.push({ ...segment });
+      continue;
+    }
+
+    if (candidate.width >= candidate.depth) {
+      const start = Math.min(candidate.centerX - candidate.width / 2, segment.centerX - segment.width / 2);
+      const end = Math.max(candidate.centerX + candidate.width / 2, segment.centerX + segment.width / 2);
+      candidate.centerX = (start + end) / 2;
+      candidate.width = end - start;
+      candidate.depth = Math.max(candidate.depth, segment.depth);
+    } else {
+      const start = Math.min(candidate.centerZ - candidate.depth / 2, segment.centerZ - segment.depth / 2);
+      const end = Math.max(candidate.centerZ + candidate.depth / 2, segment.centerZ + segment.depth / 2);
+      candidate.centerZ = (start + end) / 2;
+      candidate.depth = end - start;
+      candidate.width = Math.max(candidate.width, segment.width);
+    }
+  }
+
+  return merged;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

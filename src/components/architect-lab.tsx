@@ -1,23 +1,17 @@
 "use client";
 
-import { Activity, CircleHelp, Copy, DraftingCompass, ExternalLink, FileImage, Lock, LockOpen, MessageSquareText, Minimize2, Plus, Trash2, Upload } from "lucide-react";
+import { Activity, CircleHelp, Copy, DraftingCompass, ExternalLink, FileImage, Grid3X3, Lock, LockOpen, MessageSquareText, Minimize2, Plus, Trash2, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import { ASSET_LIBRARY } from "@/lib/asset-library";
 import { buildAssistantReply } from "@/lib/editor-assistant";
-import { DEFAULT_PLAN_MODEL } from "@/lib/default-plan";
+import { createGeneratedPlanModelFromPrompt, isPlanGenerationRequest } from "@/lib/generated-plan";
 import { createPlanModelFromFile } from "@/lib/plan-to-model";
-import { clampSceneObjectPosition, createSceneObjectFromAsset, duplicateSceneObject, findAssetById, summarizeProject } from "@/lib/scene-assets";
-import type {
-  ArchitecturalFeatures,
-  ChatMessage,
-  ConsoleLogEntry,
-  GestureFrame,
-  PlanModel,
-  SceneObject,
-} from "@/lib/types";
+import { clampSceneObjectPosition, createSceneObjectFromAsset, findAssetById, snapPositionToGrid } from "@/lib/scene-assets";
+import type { ArchitecturalFeatures, GestureFrame, SceneObject } from "@/lib/types";
+import { useEditorStore } from "@/lib/use-editor-store";
 
 const GestureTracker = dynamic(
   () => import("@/components/gesture-tracker").then((module) => module.GestureTracker),
@@ -48,65 +42,46 @@ const EMPTY_GESTURE: GestureFrame = {
   zoomDelta: 0,
 };
 
-const INITIAL_FEATURES: ArchitecturalFeatures = {
-  roofEnabled: false,
-  windowsEnabled: false,
-  doorsEnabled: false,
-  gardenEnabled: false,
-};
-
-const INITIAL_CHAT: ChatMessage[] = [
-  {
-    id: "assistant-init",
-    role: "assistant",
-    content:
-      "Posso te orientar na criacao da maquete. Tente pedir algo como: adicionar sofa, ativar telhado, ligar janelas ou explicar o proximo passo do projeto.",
-  },
-];
-
-type SidePanelMode = "default" | "library" | "chat";
-
 export function ArchitectLab() {
   const gestureRef = useRef<GestureFrame>(EMPTY_GESTURE);
   const lastHudRef = useRef(0);
-  const [planModel, setPlanModel] = useState<PlanModel>(DEFAULT_PLAN_MODEL);
-  const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([
-    { id: "boot-log", message: "Workspace inicializado com a maquete base do editor." },
-  ]);
-  const [isConverting, setIsConverting] = useState(false);
-  const [isGestureMovementLocked, setIsGestureMovementLocked] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isViewerExpanded, setIsViewerExpanded] = useState(false);
-  const [gestureHud, setGestureHud] = useState(EMPTY_GESTURE);
-  const [sceneObjects, setSceneObjects] = useState<SceneObject[]>([]);
-  const [selectedSceneObjectId, setSelectedSceneObjectId] = useState<string | null>(null);
-  const [architecturalFeatures, setArchitecturalFeatures] = useState<ArchitecturalFeatures>(INITIAL_FEATURES);
-  const [sidePanelMode, setSidePanelMode] = useState<SidePanelMode>("default");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
-  const [chatDraft, setChatDraft] = useState("");
-  const selectedObject = sceneObjects.find((item) => item.id === selectedSceneObjectId) ?? null;
-  const summary = summarizeProject(planModel, sceneObjects, architecturalFeatures);
-  const activeFeatureCount =
-    Number(architecturalFeatures.roofEnabled) +
-    Number(architecturalFeatures.windowsEnabled) +
-    Number(architecturalFeatures.doorsEnabled) +
-    Number(architecturalFeatures.gardenEnabled);
-
-  const appendConsoleLog = useCallback((message: string) => {
-    setConsoleLogs((current) => [{ id: `${Date.now()}-${current.length}`, message }, ...current].slice(0, 24));
-  }, []);
-
-  const toggleSidePanel = useCallback((mode: SidePanelMode) => {
-    setSidePanelMode((current) => (current === mode ? "default" : mode));
-  }, []);
-
-  const applyArchitecturalFeature = useCallback(
-    (feature: keyof ArchitecturalFeatures, label: string, enabled: boolean) => {
-      setArchitecturalFeatures((current) => ({ ...current, [feature]: enabled }));
-      appendConsoleLog(`${label} ${enabled ? "ativado" : "desativado"} na maquete.`);
-    },
-    [appendConsoleLog],
-  );
+  const {
+    state,
+    selectedObject,
+    summary,
+    activeFeatureCount,
+    appendConsoleLog,
+    setPlanModel,
+    setIsConverting,
+    toggleGestureMovementLocked,
+    toggleHelp,
+    setIsViewerExpanded,
+    setGestureHud,
+    setSceneObjects,
+    setSelectedSceneObjectId,
+    applyArchitecturalFeature,
+    toggleSidePanel,
+    addChatMessage,
+    setChatDraft,
+    toggleSnap,
+    duplicateSelectedObject,
+  } = useEditorStore();
+  const {
+    planModel,
+    consoleLogs,
+    isConverting,
+    isGestureMovementLocked,
+    isHelpOpen,
+    isViewerExpanded,
+    gestureHud,
+    sceneObjects,
+    selectedSceneObjectId,
+    architecturalFeatures,
+    sidePanelMode,
+    chatMessages,
+    chatDraft,
+    snapEnabled,
+  } = state;
 
   const handleUpload = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -119,13 +94,9 @@ export function ArchitectLab() {
       appendConsoleLog(`Importacao iniciada para ${file.name}.`);
 
       try {
-        setPlanModel((current) => {
-          if (current.imageUrl?.startsWith("blob:")) {
-            URL.revokeObjectURL(current.imageUrl);
-          }
-
-          return current;
-        });
+        if (planModel.imageUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(planModel.imageUrl);
+        }
 
         const nextModel = await createPlanModelFromFile(file);
         setPlanModel(nextModel);
@@ -138,7 +109,7 @@ export function ArchitectLab() {
         event.target.value = "";
       }
     },
-    [appendConsoleLog],
+    [appendConsoleLog, planModel.imageUrl, setIsConverting, setPlanModel],
   );
 
   const handleGesture = useCallback((frame: GestureFrame) => {
@@ -149,7 +120,7 @@ export function ArchitectLab() {
       lastHudRef.current = now;
       setGestureHud(frame);
     }
-  }, []);
+  }, [setGestureHud]);
 
   const handleAssetSelect = useCallback(
     (assetId: string) => {
@@ -174,28 +145,34 @@ export function ArchitectLab() {
       }
 
       const nextObject = createSceneObjectFromAsset(asset, sceneObjects.length, planModel);
-      setSceneObjects((current) => [...current, nextObject]);
+      setSceneObjects([...sceneObjects, nextObject]);
       setSelectedSceneObjectId(nextObject.id);
       appendConsoleLog(`Objeto ${asset.label} inserido na maquete.`);
     },
-    [appendConsoleLog, applyArchitecturalFeature, planModel, sceneObjects.length],
+    [appendConsoleLog, applyArchitecturalFeature, planModel, sceneObjects, setSceneObjects, setSelectedSceneObjectId],
   );
 
   const handleSceneObjectUpdate = useCallback(
     (id: string, patch: Partial<SceneObject>) => {
-      setSceneObjects((current) =>
-        current.map((item) => {
+      setSceneObjects(
+        sceneObjects.map((item) => {
           if (item.id !== id) {
             return item;
           }
 
           const nextPosition = patch.position
             ? clampSceneObjectPosition(
-                {
-                  x: patch.position.x,
-                  y: 0,
-                  z: patch.position.z,
-                },
+                snapEnabled
+                  ? snapPositionToGrid({
+                      x: patch.position.x,
+                      y: 0,
+                      z: patch.position.z,
+                    })
+                  : {
+                      x: patch.position.x,
+                      y: 0,
+                      z: patch.position.z,
+                    },
                 planModel,
                 item.placement,
               )
@@ -209,7 +186,7 @@ export function ArchitectLab() {
         }),
       );
     },
-    [planModel],
+    [planModel, sceneObjects, setSceneObjects, snapEnabled],
   );
 
   const moveSelectedObject = useCallback(
@@ -255,29 +232,18 @@ export function ArchitectLab() {
     [handleSceneObjectUpdate, selectedObject],
   );
 
-  const duplicateSelectedObject = useCallback(() => {
-    if (!selectedObject) {
-      return;
-    }
-
-    const nextObject = duplicateSceneObject(selectedObject, planModel);
-    setSceneObjects((current) => [...current, nextObject]);
-    setSelectedSceneObjectId(nextObject.id);
-    appendConsoleLog(`Objeto ${selectedObject.label} duplicado.`);
-  }, [appendConsoleLog, planModel, selectedObject]);
-
   const removeSelectedObject = useCallback(() => {
     if (!selectedObject) {
       return;
     }
 
-    setSceneObjects((current) => current.filter((item) => item.id !== selectedObject.id));
+    setSceneObjects(sceneObjects.filter((item) => item.id !== selectedObject.id));
     setSelectedSceneObjectId(null);
     appendConsoleLog(`Objeto ${selectedObject.label} removido da maquete.`);
-  }, [appendConsoleLog, selectedObject]);
+  }, [appendConsoleLog, sceneObjects, selectedObject, setSceneObjects, setSelectedSceneObjectId]);
 
   const handleChatSubmit = useCallback(
-    (event?: FormEvent<HTMLFormElement>) => {
+    async (event?: FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
 
       const message = chatDraft.trim();
@@ -285,25 +251,85 @@ export function ArchitectLab() {
         return;
       }
 
-      const userMessage: ChatMessage = {
+      const userMessage = {
         id: `user-${Date.now()}`,
         role: "user",
         content: message,
-      };
+      } as const;
 
-      setChatMessages((current) => [...current, userMessage]);
+      addChatMessage(userMessage);
       appendConsoleLog(`Chat: ${message}`);
 
-      const reply = buildAssistantReply({
+      let reply = buildAssistantReply({
         message,
         planModel,
         sceneObjects,
         features: architecturalFeatures,
       });
 
+      try {
+        const response = await fetch("/api/editor-guide", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message,
+            plan: {
+              sourceLabel: planModel.sourceLabel,
+              floorWidth: planModel.floorWidth,
+              floorDepth: planModel.floorDepth,
+              metrics: planModel.metrics,
+            },
+            scene: {
+              objectCount: sceneObjects.length,
+              selectedObjectLabel: selectedObject?.label ?? null,
+              activeFeatures: architecturalFeatures,
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as { reply?: string };
+          if (data.reply) {
+            reply = {
+              ...reply,
+              reply: data.reply,
+            };
+          }
+        }
+      } catch {
+        appendConsoleLog("Chat IA indisponivel. Mantendo guia local do editor.");
+      }
+
       for (const intent of reply.intents) {
         if (intent.type === "open-library") {
-          setSidePanelMode("library");
+          toggleSidePanel("library");
+        }
+
+        if (intent.type === "open-help" && !isHelpOpen) {
+          toggleHelp();
+        }
+
+        if (intent.type === "toggle-snap" && intent.enabled !== snapEnabled) {
+          toggleSnap();
+          appendConsoleLog(`Snap ${intent.enabled ? "ativado" : "desativado"} pelo chat.`);
+        }
+
+        if (intent.type === "duplicate-selected") {
+          duplicateSelectedObject();
+        }
+
+        if (intent.type === "remove-selected" && selectedObject) {
+          removeSelectedObject();
+        }
+
+        if (intent.type === "generate-plan") {
+          const generatedPlan = createGeneratedPlanModelFromPrompt(intent.prompt);
+          setPlanModel(generatedPlan);
+          setSceneObjects([]);
+          setSelectedSceneObjectId(null);
+          appendConsoleLog(`Nova planta 2D gerada via chat: ${generatedPlan.sourceLabel}.`);
         }
 
         if (intent.type === "toggle-feature") {
@@ -321,16 +347,45 @@ export function ArchitectLab() {
         }
       }
 
-      const assistantMessage: ChatMessage = {
+      if (reply.intents.length === 0 && isPlanGenerationRequest(message)) {
+        const generatedPlan = createGeneratedPlanModelFromPrompt(message);
+        setPlanModel(generatedPlan);
+        setSceneObjects([]);
+        setSelectedSceneObjectId(null);
+        appendConsoleLog(`Nova planta 2D gerada via chat: ${generatedPlan.sourceLabel}.`);
+      }
+
+      const assistantMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: "assistant",
         content: reply.reply,
-      };
+      } as const;
 
-      setChatMessages((current) => [...current, assistantMessage]);
+      addChatMessage(assistantMessage);
       setChatDraft("");
     },
-    [appendConsoleLog, architecturalFeatures, applyArchitecturalFeature, chatDraft, handleAssetSelect, planModel, sceneObjects],
+    [
+      addChatMessage,
+      appendConsoleLog,
+      architecturalFeatures,
+      applyArchitecturalFeature,
+      chatDraft,
+      duplicateSelectedObject,
+      handleAssetSelect,
+      isHelpOpen,
+      planModel,
+      removeSelectedObject,
+      sceneObjects,
+      selectedObject,
+      setChatDraft,
+      setPlanModel,
+      setSceneObjects,
+      setSelectedSceneObjectId,
+      snapEnabled,
+      toggleHelp,
+      toggleSidePanel,
+      toggleSnap,
+    ],
   );
 
   const isBusy = isConverting;
@@ -372,14 +427,21 @@ export function ArchitectLab() {
               )
             }
             label={isGestureMovementLocked ? "Gestos bloqueados" : "Gestos liberados"}
-            onClick={() => setIsGestureMovementLocked((current) => !current)}
+            onClick={toggleGestureMovementLocked}
             minWidthClass="min-w-[148px]"
+          />
+          <HeaderButton
+            active={snapEnabled}
+            icon={<Grid3X3 className="size-3.5 text-[var(--accent)]" />}
+            label={snapEnabled ? "Snap ligado" : "Snap livre"}
+            onClick={toggleSnap}
+            minWidthClass="min-w-[124px]"
           />
           <HeaderButton
             active={isHelpOpen}
             icon={<CircleHelp className="size-3.5 text-[var(--accent)]" />}
             label="Help"
-            onClick={() => setIsHelpOpen((current) => !current)}
+            onClick={toggleHelp}
             minWidthClass="min-w-[108px]"
           />
           <ToolbarChip icon={<Activity className="size-3.5" />} label={isConverting ? "Convertendo planta" : "Editor pronto"} tone={isBusy ? "accent" : "neutral"} />
@@ -428,6 +490,7 @@ export function ArchitectLab() {
                 architecturalFeatures={architecturalFeatures}
                 onSelectSceneObject={setSelectedSceneObjectId}
                 onUpdateSceneObject={handleSceneObjectUpdate}
+                snapEnabled={snapEnabled}
               />
             </div>
 
@@ -537,6 +600,7 @@ export function ArchitectLab() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <QuickActionButton label="Gerar planta" onClick={() => setChatDraft("Criar planta 2D com 3 quartos, 2 banheiros, garagem e varanda")} />
                   <QuickActionButton label="Adicionar sofa" onClick={() => setChatDraft("Adicionar sofa na sala")} />
                   <QuickActionButton label="Ativar telhado" onClick={() => setChatDraft("Ativar telhado")} />
                   <QuickActionButton label="Inserir carro" onClick={() => setChatDraft("Adicionar carro compacto")} />
@@ -597,89 +661,86 @@ export function ArchitectLab() {
                 description={selectedObject ? "Edicao do item selecionado na maquete." : "Importacao, presets e resumo da cena."}
                 compact
               >
-                {selectedObject ? (
-                  <div className="grid gap-2">
-                    <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
-                      <p className="text-[10px] uppercase tracking-[0.24em]">Objeto ativo</p>
-                      <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{selectedObject.label}</p>
-                    </div>
+                <div className="stealth-scroll h-full overflow-y-auto pr-1">
+                  {selectedObject ? (
+                    <div className="grid gap-2">
+                      <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
+                        <p className="text-[10px] uppercase tracking-[0.24em]">Objeto ativo</p>
+                        <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{selectedObject.label}</p>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <StatLine label="Pos X" value={selectedObject.position.x.toFixed(2)} compact />
-                      <StatLine label="Pos Z" value={selectedObject.position.z.toFixed(2)} compact />
-                      <StatLine label="Rot Y" value={selectedObject.rotationY.toFixed(2)} compact />
-                      <StatLine label="Scale" value={selectedObject.scale.toFixed(2)} compact />
-                    </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <StatLine label="Pos X" value={selectedObject.position.x.toFixed(2)} compact />
+                        <StatLine label="Pos Z" value={selectedObject.position.z.toFixed(2)} compact />
+                        <StatLine label="Rot Y" value={selectedObject.rotationY.toFixed(2)} compact />
+                        <StatLine label="Scale" value={selectedObject.scale.toFixed(2)} compact />
+                      </div>
 
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <SmallActionButton label="Esq" onClick={() => moveSelectedObject(-0.6, 0)} />
-                      <SmallActionButton label="Frente" onClick={() => moveSelectedObject(0, -0.6)} />
-                      <SmallActionButton label="Dir" onClick={() => moveSelectedObject(0.6, 0)} />
-                      <SmallActionButton label="Tras" onClick={() => moveSelectedObject(0, 0.6)} />
-                      <SmallActionButton label="Rot -" onClick={() => rotateSelectedObject(-0.25)} />
-                      <SmallActionButton label="Rot +" onClick={() => rotateSelectedObject(0.25)} />
-                      <SmallActionButton label="Esc -" onClick={() => scaleSelectedObject(-0.08)} />
-                      <SmallActionButton label="Esc +" onClick={() => scaleSelectedObject(0.08)} />
-                      <SmallActionButton label="Centralizar" onClick={() => handleSceneObjectUpdate(selectedObject.id, { position: { x: 0, y: 0, z: 0 } })} />
-                    </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <SmallActionButton label="Esq" onClick={() => moveSelectedObject(-0.6, 0)} />
+                        <SmallActionButton label="Frente" onClick={() => moveSelectedObject(0, -0.6)} />
+                        <SmallActionButton label="Dir" onClick={() => moveSelectedObject(0.6, 0)} />
+                        <SmallActionButton label="Tras" onClick={() => moveSelectedObject(0, 0.6)} />
+                        <SmallActionButton label="Rot -" onClick={() => rotateSelectedObject(-0.25)} />
+                        <SmallActionButton label="Rot +" onClick={() => rotateSelectedObject(0.25)} />
+                        <SmallActionButton label="Esc -" onClick={() => scaleSelectedObject(-0.08)} />
+                        <SmallActionButton label="Esc +" onClick={() => scaleSelectedObject(0.08)} />
+                        <SmallActionButton label="Centralizar" onClick={() => handleSceneObjectUpdate(selectedObject.id, { position: { x: 0, y: 0, z: 0 } })} />
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={duplicateSelectedObject}
-                        className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
-                      >
-                        <Copy className="size-3.5" />
-                        <span>Duplicar</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={removeSelectedObject}
-                        className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span>Remover</span>
-                      </button>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={duplicateSelectedObject}
+                          className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+                        >
+                          <Copy className="size-3.5" />
+                          <span>Duplicar</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeSelectedObject}
+                          className="inline-flex h-8 items-center justify-center gap-2 rounded-[5px] border border-white/8 bg-[var(--panel)] px-3 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/35 hover:text-[var(--accent)]"
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span>Remover</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-2">
-                    <div className="rounded-[5px] border border-white/6 bg-[var(--panel-strong)] px-2.5 py-2 text-sm text-[var(--muted)]">
-                      <p className="text-[10px] uppercase tracking-[0.24em]">Origem</p>
-                      <p className="mt-0.5 text-xs leading-4 text-[var(--foreground)]">{planModel.sourceLabel}</p>
-                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <div className="grid gap-1.5">
+                        <SignalRow label="Origem" value={planModel.sourceLabel} />
+                        <SignalRow label="Width" value={String(planModel.metrics.width)} />
+                        <SignalRow label="Height" value={String(planModel.metrics.height)} />
+                        <SignalRow label="Objetos" value={String(summary.objectCount)} />
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <StatLine label="Width" value={String(planModel.metrics.width)} compact />
-                      <StatLine label="Height" value={String(planModel.metrics.height)} compact />
-                      <StatLine label="Objetos" value={String(summary.objectCount)} compact />
-                      <StatLine label="Externos" value={String(summary.outdoorCount)} compact />
+                      <div className="grid gap-1.5">
+                        <FeatureToggleRow
+                          label="Telhado"
+                          active={architecturalFeatures.roofEnabled}
+                          onClick={() => applyArchitecturalFeature("roofEnabled", "Telhado", !architecturalFeatures.roofEnabled)}
+                        />
+                        <FeatureToggleRow
+                          label="Portas"
+                          active={architecturalFeatures.doorsEnabled}
+                          onClick={() => applyArchitecturalFeature("doorsEnabled", "Portas", !architecturalFeatures.doorsEnabled)}
+                        />
+                        <FeatureToggleRow
+                          label="Janelas"
+                          active={architecturalFeatures.windowsEnabled}
+                          onClick={() => applyArchitecturalFeature("windowsEnabled", "Janelas", !architecturalFeatures.windowsEnabled)}
+                        />
+                        <FeatureToggleRow
+                          label="Jardim"
+                          active={architecturalFeatures.gardenEnabled}
+                          onClick={() => applyArchitecturalFeature("gardenEnabled", "Jardim", !architecturalFeatures.gardenEnabled)}
+                        />
+                      </div>
                     </div>
-
-                    <div className="grid gap-1.5">
-                      <FeatureToggleRow
-                        label="Telhado"
-                        active={architecturalFeatures.roofEnabled}
-                        onClick={() => applyArchitecturalFeature("roofEnabled", "Telhado", !architecturalFeatures.roofEnabled)}
-                      />
-                      <FeatureToggleRow
-                        label="Portas"
-                        active={architecturalFeatures.doorsEnabled}
-                        onClick={() => applyArchitecturalFeature("doorsEnabled", "Portas", !architecturalFeatures.doorsEnabled)}
-                      />
-                      <FeatureToggleRow
-                        label="Janelas"
-                        active={architecturalFeatures.windowsEnabled}
-                        onClick={() => applyArchitecturalFeature("windowsEnabled", "Janelas", !architecturalFeatures.windowsEnabled)}
-                      />
-                      <FeatureToggleRow
-                        label="Jardim"
-                        active={architecturalFeatures.gardenEnabled}
-                        onClick={() => applyArchitecturalFeature("gardenEnabled", "Jardim", !architecturalFeatures.gardenEnabled)}
-                      />
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </StandardCard>
             </>
           ) : null}
@@ -713,6 +774,7 @@ export function ArchitectLab() {
                 architecturalFeatures={architecturalFeatures}
                 onSelectSceneObject={setSelectedSceneObjectId}
                 onUpdateSceneObject={handleSceneObjectUpdate}
+                snapEnabled={snapEnabled}
               />
             </div>
           </div>
@@ -857,12 +919,12 @@ function FeatureToggleRow({ label, active, onClick }: { label: string; active: b
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-between rounded-[5px] border px-2.5 py-2 text-xs transition ${
+      className={`flex items-center justify-between rounded-[5px] border px-2.5 py-1.5 transition ${
         active ? "border-[var(--accent)]/35 bg-[var(--accent)]/14 text-[var(--foreground)]" : "border-white/6 bg-[var(--panel-strong)] text-[var(--muted)]"
       }`}
     >
-      <span>{label}</span>
-      <span>{active ? "Ativo" : "Desligado"}</span>
+      <span className="text-[10px] uppercase tracking-[0.16em]">{label}</span>
+      <span className="text-xs text-[var(--foreground)]">{active ? "Ativo" : "Desligado"}</span>
     </button>
   );
 }
